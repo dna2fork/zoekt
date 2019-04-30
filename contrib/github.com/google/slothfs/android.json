@@ -1,0 +1,18 @@
+[
+  {
+    "Repo": ".*darwin.*",
+    "Clone": false
+  },
+  {
+    "File": ".*\\.mk$",
+    "Clone": false
+  },
+  {
+    "File": ".*\\.bp$",
+    "Clone": false
+  },
+  {
+    "File": ".*\\.apk$",
+    "Clone": false
+  }
+]
