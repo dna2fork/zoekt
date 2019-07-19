@@ -38,12 +38,10 @@ type ConfigEntry struct {
 	GitilesURL             string
 	CGitURL                string
 	BitBucketServerURL     string
-	CredentialPath         string
 	ProjectType            string
 	Name                   string
 	Exclude                string
 	GitLabURL              string
-	OnlyPublic             bool
 }
 
 func randomize(entries []ConfigEntry) []ConfigEntry {
@@ -158,9 +156,9 @@ func executeMirror(cfg []ConfigEntry, repoDir string, pendingRepos chan<- string
 	cfg = randomize(cfg)
 	for _, c := range cfg {
 		var cmd *exec.Cmd
-		if c.GitHubURL != "" || c.GithubUser != "" || c.GithubOrg != "" {
+		if c.GithubUser != "" || c.GithubOrg != "" {
 			cmd = exec.Command("zoekt-mirror-github",
-				"-dest", repoDir, "-delete")
+				"-dest", repoDir)
 			if c.GitHubURL != "" {
 				cmd.Args = append(cmd.Args, "-url", c.GitHubURL)
 			}
@@ -174,9 +172,6 @@ func executeMirror(cfg []ConfigEntry, repoDir string, pendingRepos chan<- string
 			}
 			if c.Exclude != "" {
 				cmd.Args = append(cmd.Args, "-exclude", c.Exclude)
-			}
-			if c.CredentialPath != "" {
-				cmd.Args = append(cmd.Args, "-token", c.CredentialPath)
 			}
 		} else if c.GitilesURL != "" {
 			cmd = exec.Command("zoekt-mirror-gitiles",
@@ -208,9 +203,6 @@ func executeMirror(cfg []ConfigEntry, repoDir string, pendingRepos chan<- string
 			if c.Exclude != "" {
 				cmd.Args = append(cmd.Args, "-exclude", c.Exclude)
 			}
-			if c.CredentialPath != "" {
-				cmd.Args = append(cmd.Args, "-credentials", c.CredentialPath)
-			}
 		} else if c.GitLabURL != "" {
 			cmd = exec.Command("zoekt-mirror-gitlab",
 				"-dest", repoDir, "-url", c.GitLabURL)
@@ -219,12 +211,6 @@ func executeMirror(cfg []ConfigEntry, repoDir string, pendingRepos chan<- string
 			}
 			if c.Exclude != "" {
 				cmd.Args = append(cmd.Args, "-exclude", c.Exclude)
-			}
-			if c.OnlyPublic {
-				cmd.Args = append(cmd.Args, "-public")
-			}
-			if c.CredentialPath != "" {
-				cmd.Args = append(cmd.Args, "-token", c.CredentialPath)
 			}
 		}
 

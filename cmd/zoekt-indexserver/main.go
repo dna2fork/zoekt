@@ -21,7 +21,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -63,7 +62,6 @@ type Options struct {
 	indexFlags       []string
 	mirrorConfigFile string
 	maxLogAge        time.Duration
-	indexTimeout     time.Duration
 }
 
 func (o *Options) validate() {
@@ -81,7 +79,6 @@ func (o *Options) validate() {
 }
 
 func (o *Options) defineFlags() {
-	flag.DurationVar(&o.indexTimeout, "index_timeout", time.Hour, "kill index job after this much time")
 	flag.DurationVar(&o.maxLogAge, "max_log_age", 3*day, "recycle index logs after this much time")
 	flag.DurationVar(&o.fetchInterval, "fetch_interval", time.Hour, "run fetches this often")
 	flag.StringVar(&o.mirrorConfigFile, "mirror_config",
@@ -150,25 +147,18 @@ func fetchGitRepo(dir string) bool {
 // indexes them, sequentially.
 func indexPendingRepos(indexDir, repoDir string, opts *Options, repos <-chan string) {
 	for dir := range repos {
-		indexPendingRepo(dir, indexDir, repoDir, opts)
+		args := []string{
+			"-require_ctags",
+			fmt.Sprintf("-parallelism=%d", opts.cpuCount),
+			"-repo_cache", repoDir,
+			"-index", indexDir,
+			"-incremental",
+		}
+		args = append(args, opts.indexFlags...)
+		args = append(args, dir)
+		cmd := exec.Command("zoekt-git-index", args...)
+		loggedRun(cmd)
 	}
-}
-
-func indexPendingRepo(dir, indexDir, repoDir string, opts *Options) {
-	ctx, cancel := context.WithTimeout(context.Background(), opts.indexTimeout)
-	defer cancel()
-	args := []string{
-		"-require_ctags",
-		fmt.Sprintf("-parallelism=%d", opts.cpuCount),
-		"-repo_cache", repoDir,
-		"-index", indexDir,
-		"-incremental",
-	}
-	args = append(args, opts.indexFlags...)
-	args = append(args, dir)
-	cmd := exec.CommandContext(ctx, "zoekt-git-index", args...)
-	loggedRun(cmd)
-
 }
 
 // deleteLogs deletes old logs.

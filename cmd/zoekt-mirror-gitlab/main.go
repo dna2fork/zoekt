@@ -46,7 +46,6 @@ func main() {
 		filepath.Join(os.Getenv("HOME"), ".gitlab-token"),
 		"file holding API token.")
 	isMember := flag.Bool("membership", false, "only mirror repos this user is a member of ")
-	isPublic := flag.Bool("public", false, "only mirror public repos")
 	deleteRepos := flag.Bool("delete", false, "delete missing repos")
 	namePattern := flag.String("name", "", "only clone repos whose name matches the given regexp.")
 	excludePattern := flag.String("exclude", "", "don't mirror repos whose names match this regexp.")
@@ -83,9 +82,6 @@ func main() {
 			Page:    1,
 		},
 		Membership: isMember,
-	}
-	if *isPublic {
-		opt.Visibility = gitlab.Visibility(gitlab.PublicVisibility)
 	}
 
 	var gitlabProjects []*gitlab.Project

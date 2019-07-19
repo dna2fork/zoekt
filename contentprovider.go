@@ -150,7 +150,6 @@ func (p *contentProvider) fillMatches(ms []*candidateMatch) []LineMatch {
 			result = []LineMatch{res}
 		}
 	} else {
-		ms = breakMatchesOnNewlines(ms, p.data(false))
 		result = p.fillContentMatches(ms)
 	}
 

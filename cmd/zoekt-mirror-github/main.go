@@ -53,8 +53,8 @@ func main() {
 	if *dest == "" {
 		log.Fatal("must set --dest")
 	}
-	if *githubURL == "" && *org == "" && *user == "" {
-		log.Fatal("must set either --org or --user when github.com is used as host")
+	if (*org == "") == (*user == "") {
+		log.Fatal("must set either --org or --user")
 	}
 
 	var host string
@@ -112,9 +112,6 @@ func main() {
 		repos, err = getOrgRepos(client, *org)
 	} else if *user != "" {
 		repos, err = getUserRepos(client, *user)
-	} else {
-		log.Printf("no user or org specified, cloning all repos.")
-		repos, err = getUserRepos(client, "")
 	}
 
 	if err != nil {
@@ -184,9 +181,10 @@ func deleteStaleRepos(destDir string, filter *gitindex.Filter, repos []*github.R
 
 		names[filepath.Join(u.Host, u.Path+".git")] = true
 	}
+
 	var toDelete []string
 	for _, p := range paths {
-		if filter.Include(filepath.Base(p)) && !names[p] {
+		if filter.Include(p) && !names[p] {
 			toDelete = append(toDelete, p)
 		}
 	}

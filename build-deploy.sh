@@ -18,7 +18,7 @@ set -u
 out=zoekt-${VERSION}
 mkdir -p ${out}
 
-for d in $(find cmd  -maxdepth 1 -type d)
+for d in cmd/*
 do
   go build -tags netgo -ldflags "-X github.com/google/zoekt.Version=$VERSION"  -o ${out}/$(basename $d) github.com/google/zoekt/$d
 done

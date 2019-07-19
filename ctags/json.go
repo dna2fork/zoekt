@@ -82,11 +82,10 @@ func (p *ctagsProcess) Close() {
 
 func (p *ctagsProcess) read(rep *reply) error {
 	if !p.out.Scan() {
-		// Some errors (eg. token too long) do not kill the
-		// parser. We would deadlock if we waited for the
-		// process to exit.
-		err := p.out.Err()
-		p.Close()
+		// capture exit error.
+		err := p.cmd.Wait()
+		p.outPipe.Close()
+		p.in.Close()
 		return err
 	}
 	if debug {

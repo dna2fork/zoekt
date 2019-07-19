@@ -140,6 +140,7 @@ func (ss *shardedSearcher) Search(ctx context.Context, q query.Q, opts *zoekt.Se
 	aggregate.Wait = time.Since(start)
 	start = time.Now()
 
+	// TODO - allow for canceling the query.
 	shards := ss.getShards()
 	all := make(chan shardResult, len(shards))
 
