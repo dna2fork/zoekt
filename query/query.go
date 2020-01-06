@@ -86,6 +86,7 @@ func (q *Const) String() string {
 
 type Repo struct {
 	Pattern string
+	RepoNamesFromPattern []string
 }
 
 func (q *Repo) String() string {

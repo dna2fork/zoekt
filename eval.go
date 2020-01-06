@@ -39,10 +39,38 @@ func (m *FileMatch) addScore(what string, s float64) {
 	m.Score += s
 }
 
+func buildRepoListPattern(qStr string) ([]string, error) {
+	// TODO: validate qStr (length, split(',') length) if too long return error
+	if len(qStr) == 0 {
+		return nil, nil
+	}
+	patterns := strings.Split(qStr, ",")
+	return patterns, nil
+}
+
+func matchRepoListPattern(name string, patternList []string) bool {
+	if (patternList == nil) {
+		return true
+	}
+	if (len(patternList) == 0) {
+		return true
+	}
+	for _, a := range patternList {
+		if strings.Contains(name, a) {
+			 return true
+		}
+  }
+  return false
+}
+
 func (d *indexData) simplify(in query.Q) query.Q {
 	eval := query.Map(in, func(q query.Q) query.Q {
 		if r, ok := q.(*query.Repo); ok {
-			return &query.Const{Value: strings.Contains(d.repoMetaData.Name, r.Pattern)}
+			// original: return &query.Const{Value: strings.Contains(d.repoMetaData.Name, r.Pattern)}
+			if r.RepoNamesFromPattern == nil {
+				r.RepoNamesFromPattern, _ = buildRepoListPattern(r.Pattern)
+			}
+			return &query.Const{Value: matchRepoListPattern(d.repoMetaData.Name, r.RepoNamesFromPattern)}
 		}
 		if l, ok := q.(*query.Language); ok {
 			_, has := d.metaData.LanguageMap[l.Language]
