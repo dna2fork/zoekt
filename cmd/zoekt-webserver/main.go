@@ -109,6 +109,7 @@ func main() {
 	index := flag.String("index", build.DefaultDir, "set index directory to use")
 	html := flag.Bool("html", true, "enable HTML interface")
 	print := flag.Bool("print", false, "enable local result URLs")
+	fsbase := flag.String("fs_base_dir", "", "enable api to fetch file/directory contents")
 	enablePprof := flag.Bool("pprof", false, "set to enable remote profiling.")
 	sslCert := flag.String("ssl_cert", "", "set path to SSL .pem holding certificate.")
 	sslKey := flag.String("ssl_key", "", "set path to SSL .pem holding key.")
@@ -168,6 +169,7 @@ func main() {
 	}
 
 	s.Print = *print
+	s.SourceBaseDir = *fsbase
 	s.HTML = *html
 
 	if *hostCustomization != "" {

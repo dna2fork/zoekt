@@ -28,12 +28,24 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"path/filepath"
+	"os"
+	"io/ioutil"
 
 	"golang.org/x/net/context"
 
 	"github.com/google/zoekt"
 	"github.com/google/zoekt/query"
 )
+
+func jsonText (json string) string {
+	json = strings.Replace(json, "\\", "&#92;", -1)
+	json = strings.Replace(json, "\n", "&#10;", -1)
+	json = strings.Replace(json, "\r", "&#13;", -1)
+	json = strings.Replace(json, "\t", "&#8;", -1)
+	json = strings.Replace(json, "\"", "&#34;", -1)
+	return json
+}
 
 var Funcmap = template.FuncMap{
 	"Inc": func(orig int) int {
@@ -70,13 +82,7 @@ var Funcmap = template.FuncMap{
 		}
 		return fmt.Sprintf("%s...(%d bytes skipped)...", post[:limit], len(post)-limit)
 	},
-	"JsonText": func(json string) string {
-		json = strings.Replace(json, "\\", "&#92;", -1)
-		json = strings.Replace(json, "\n", "&#10;", -1)
-		json = strings.Replace(json, "\r", "&#13;", -1)
-		json = strings.Replace(json, "\t", "&#8;", -1)
-		return json
-	},
+	"JsonText": jsonText,
 }
 
 const defaultNumResults = 50
@@ -122,6 +128,8 @@ type Server struct {
 	lastStatsMu sync.Mutex
 	lastStats   *zoekt.RepoStats
 	lastStatsTS time.Time
+
+	SourceBaseDir string
 }
 
 func (s *Server) getTemplate(str string) *template.Template {
@@ -171,6 +179,17 @@ func NewMux(s *Server) (*http.ServeMux, error) {
 		mux.HandleFunc("/", s.serveSearchBox)
 		mux.HandleFunc("/about", s.serveAbout)
 		mux.HandleFunc("/print", s.servePrint)
+	}
+	if s.HTML && s.SourceBaseDir != "" {
+		var err error
+		s.SourceBaseDir, err = filepath.Abs(s.SourceBaseDir)
+		if err != nil {
+			log.Fatal(fmt.Sprintf("set invalid source code base directory of \"%s\": %v", s.SourceBaseDir, err))
+		}
+		if isDirectory(s.SourceBaseDir) != 1 {
+			log.Fatal(fmt.Sprintf("source code base directory of \"%s\" is not a directory or inaccessible", s.SourceBaseDir))
+		}
+		mux.HandleFunc("/fsprint", s.serveFSPrint)
 	}
 
 	return mux, nil
@@ -293,6 +312,13 @@ func (s *Server) serveSearchErr(w http.ResponseWriter, r *http.Request) error {
 
 func (s *Server) servePrint(w http.ResponseWriter, r *http.Request) {
 	err := s.servePrintErr(w, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusTeapot)
+	}
+}
+
+func (s *Server) serveFSPrint(w http.ResponseWriter, r *http.Request) {
+	err := s.serveFSPrintErr(w, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusTeapot)
 	}
@@ -566,5 +592,106 @@ func (s *Server) servePrintErr(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	w.Write(buf.Bytes())
+	return nil
+}
+
+func checkFileExists(path string) bool {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return false;
+	}
+	return true;
+}
+
+func isDirectory(path string) int {
+	f, err := os.Stat(path);
+	if err != nil {
+		return -1;
+	}
+	if (f.Mode().IsDir()) {
+		return 1;
+	}
+	return 0;
+}
+
+func sendDirectoryContents(w http.ResponseWriter, path string) error {
+	files, err := ioutil.ReadDir(path)
+	if err != nil {
+		w.Write([]byte(`{"error":500}`))
+		return err;
+	}
+	buf := `{"directory":true, "contents":[`
+	item_tpl := `{"name":"%s"},`
+	for _, file := range files {
+		name := file.Name()
+		if (file.IsDir()) {
+			name = fmt.Sprint("%s/", name)
+		}
+		buf = fmt.Sprintf(`%s%s`, buf, fmt.Sprintf(item_tpl, jsonText(name)))
+	}
+	buf = fmt.Sprintf(`%snull]}`, buf)
+	w.Write([]byte(buf))
+	return nil
+}
+
+func isBinary(data []byte, n int) bool {
+	for index, ch := range data {
+		if index >= n {
+			break
+		}
+		if ch == 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func sendFileContents(w http.ResponseWriter, path string) error {
+	// TODO: if file is too large, return error
+	file, err := os.Open(path)
+	if err != nil {
+		w.Write([]byte(`{"error":500}`))
+		return err
+	}
+	defer file.Close()
+	buf := make([]byte, 4096)
+	n, err := file.Read(buf)
+	if err != nil {
+		w.Write([]byte(`{"error":500}`))
+		return err
+	}
+	if n > 0 {
+		if isBinary(buf, n) {
+			w.Write([]byte(`{"error":403, "reason":"binary file"}`))
+			return nil
+		}
+		_, err = file.Seek(0, 0)
+		if err != nil {
+			w.Write([]byte(`{"error":500}`))
+			return err
+		}
+		buf, err = ioutil.ReadAll(file)
+		if err != nil {
+			w.Write([]byte(`{"error":500}`))
+			return err
+		}
+		w.Write([]byte( fmt.Sprintf(`{"file":true, "contents":"%s"}`, jsonText(string(buf))) ))
+		return nil
+	}
+	w.Write([]byte(`{"file":true, "contents":""}`))
+	return nil
+}
+
+func (s *Server) serveFSPrintErr(w http.ResponseWriter, r *http.Request) error {
+	qvals := r.URL.Query()
+	fileStr := qvals.Get("f")
+	repoStr := qvals.Get("r")
+	// var buf bytes.Buffer
+	path := fmt.Sprintf("%s/%s%s", s.SourceBaseDir, repoStr, fileStr)
+	result := isDirectory(path)
+	if result == 1 {
+		return sendDirectoryContents(w, path)
+	} else if result == 0 {
+		return sendFileContents(w, path)
+	} // else r == -1: err / not exists
 	return nil
 }
