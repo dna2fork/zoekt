@@ -38,15 +38,6 @@ import (
 	"github.com/google/zoekt/query"
 )
 
-func jsonText (json string) string {
-	json = strings.Replace(json, "\\", "&#92;", -1)
-	json = strings.Replace(json, "\n", "&#10;", -1)
-	json = strings.Replace(json, "\r", "&#13;", -1)
-	json = strings.Replace(json, "\t", "&#8;", -1)
-	json = strings.Replace(json, "\"", "&#34;", -1)
-	return json
-}
-
 var Funcmap = template.FuncMap{
 	"Inc": func(orig int) int {
 		return orig + 1
@@ -82,7 +73,14 @@ var Funcmap = template.FuncMap{
 		}
 		return fmt.Sprintf("%s...(%d bytes skipped)...", post[:limit], len(post)-limit)
 	},
-	"JsonText": jsonText,
+	"JsonText": func (json string) string {
+		json = strings.Replace(json, "\\", "&#92;", -1)
+		json = strings.Replace(json, "\n", "&#10;", -1)
+		json = strings.Replace(json, "\r", "&#13;", -1)
+		json = strings.Replace(json, "\t", "&#8;", -1)
+		json = strings.Replace(json, "\"", "&#34;", -1)
+		return json
+	},
 }
 
 const defaultNumResults = 50
@@ -611,6 +609,15 @@ func isDirectory(path string) int {
 		return 1;
 	}
 	return 0;
+}
+
+func jsonText (json string) string {
+	json = strings.Replace(json, "\\", "\\\\", -1)
+	json = strings.Replace(json, "\n", "\\n", -1)
+	json = strings.Replace(json, "\r", "\\r", -1)
+	json = strings.Replace(json, "\t", "\\t", -1)
+	json = strings.Replace(json, "\"", "\\\"", -1)
+	return json
 }
 
 func sendDirectoryContents(w http.ResponseWriter, path string) error {
