@@ -631,7 +631,7 @@ func sendDirectoryContents(w http.ResponseWriter, path string) error {
 	for _, file := range files {
 		name := file.Name()
 		if (file.IsDir()) {
-			name = fmt.Sprint("%s/", name)
+			name = fmt.Sprintf("%s/", name)
 		}
 		buf = fmt.Sprintf(`%s%s`, buf, fmt.Sprintf(item_tpl, jsonText(name)))
 	}
@@ -688,6 +688,16 @@ func sendFileContents(w http.ResponseWriter, path string) error {
 	return nil
 }
 
+func validatePath(path string) bool {
+	parts := strings.Split(path, "/")
+	for _, part := range parts {
+		if (part == "..") {
+			return false
+		}
+	}
+	return true
+}
+
 func (s *Server) serveFSPrintErr(w http.ResponseWriter, r *http.Request) error {
 	qvals := r.URL.Query()
 	fileStr := qvals.Get("f")
@@ -695,6 +705,10 @@ func (s *Server) serveFSPrintErr(w http.ResponseWriter, r *http.Request) error {
 	// var buf bytes.Buffer
 	path := fmt.Sprintf("%s/%s%s", s.SourceBaseDir, repoStr, fileStr)
 	result := isDirectory(path)
+	if !validatePath(path) {
+		w.Write([]byte(`{"error":403, "reason": "hacking detcted"}`))
+		return nil
+	}
 	if result == 1 {
 		return sendDirectoryContents(w, path)
 	} else if result == 0 {
