@@ -77,7 +77,8 @@ var Funcmap = template.FuncMap{
 		json = strings.Replace(json, "\\", "\\\\", -1)
 		json = strings.Replace(json, "\n", "\\n", -1)
 		json = strings.Replace(json, "\r", "\\r", -1)
-		json = strings.Replace(json, "\t", "\\r", -1)
+		json = strings.Replace(json, "\t", "\\t", -1)
+		json = strings.Replace(json, "\"", "\\\"", -1)
 		return json
 	},
 }
