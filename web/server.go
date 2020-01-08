@@ -74,11 +74,10 @@ var Funcmap = template.FuncMap{
 		return fmt.Sprintf("%s...(%d bytes skipped)...", post[:limit], len(post)-limit)
 	},
 	"JsonText": func (json string) string {
-		json = strings.Replace(json, "\\", "&#92;", -1)
-		json = strings.Replace(json, "\n", "&#10;", -1)
-		json = strings.Replace(json, "\r", "&#13;", -1)
-		json = strings.Replace(json, "\t", "&#8;", -1)
-		json = strings.Replace(json, "\"", "&#34;", -1)
+		json = strings.Replace(json, "\\", "\\\\", -1)
+		json = strings.Replace(json, "\n", "\\n", -1)
+		json = strings.Replace(json, "\r", "\\r", -1)
+		json = strings.Replace(json, "\t", "\\r", -1)
 		return json
 	},
 }
