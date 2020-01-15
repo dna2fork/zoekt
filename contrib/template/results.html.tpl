@@ -27,7 +27,7 @@
       {{else}}
          {{if .Language}}"language": "{{JsonText .Language}}",{{end}}
          {{if .Branches}}"branches": [{{range .Branches}}"{{JsonText .}}",{{end}}null],{{end}}
-         "matches": [{{range .Matches}} { "linenumber": {{.LineNum}}, "text": "{{range .Fragments}}{{JsonText (LimitPre 100 .Pre)}}{{JsonText .Match}}{{JsonText (LimitPost 100 .Post)}}{{end}}" },{{end}}null]
+         "matches": [{{range .Matches}} { "linenumber": {{.LineNum}}, "text": "{{range .Fragments}}{{JsonText (LimitPre 100 .Pre)}}<b>{{JsonText .Match}}</b>{{JsonText (LimitPost 100 .Post)}}{{end}}" },{{end}}null]
       {{end}}
       },
       {{end}}
