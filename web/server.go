@@ -620,18 +620,34 @@ func jsonText (json string) string {
 	return json
 }
 
+func combileOneItemDirectory(dirname string, basename string) string {
+	path := filepath.Join(dirname, basename)
+	files, err := ioutil.ReadDir(path)
+	if err != nil {
+		return basename
+	}
+	if len(files) != 1 {
+		return basename
+	}
+	file := files[0]
+	if !file.IsDir() {
+		return basename
+	}
+	return combileOneItemDirectory(dirname, filepath.Join(basename, file.Name()))
+}
+
 func sendDirectoryContents(w http.ResponseWriter, path string) error {
 	files, err := ioutil.ReadDir(path)
 	if err != nil {
 		w.Write([]byte(`{"error":500}`))
-		return err;
+		return err
 	}
 	buf := `{"directory":true, "contents":[`
 	item_tpl := `{"name":"%s"},`
 	for _, file := range files {
 		name := file.Name()
 		if (file.IsDir()) {
-			name = fmt.Sprintf("%s/", name)
+			name = fmt.Sprintf("%s/", combileOneItemDirectory(path, name))
 		}
 		buf = fmt.Sprintf(`%s%s`, buf, fmt.Sprintf(item_tpl, jsonText(name)))
 	}
