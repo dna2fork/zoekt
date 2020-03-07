@@ -85,6 +85,84 @@ var Funcmap = template.FuncMap{
 
 const defaultNumResults = 50
 
+type ServerAuthBasic struct {
+	FileName string
+	Value string
+	Mtime time.Time
+	Watcher *time.Timer
+}
+
+func watchAuthBasic(t *time.Timer, d time.Duration, a *ServerAuthBasic) {
+	<- t.C
+	if (a.checkModified()) {
+		a.loadBasicAuth()
+	}
+	t.Reset(d)
+	go watchAuthBasic(t, d, a)
+}
+
+func (a *ServerAuthBasic) checkAuth(r *http.Request) bool {
+	if a.FileName == "" {
+		return true
+	}
+	if a.Value == "" {
+		a.loadBasicAuth()
+	}
+	if a.Watcher == nil {
+		d := time.Minute
+		a.Watcher = time.NewTimer(d)
+		go watchAuthBasic(a.Watcher, d, a)
+	}
+
+	value := strings.Trim(r.Header.Get("Authorization"), " \r\n\t")
+	if value == a.Value {
+		return true
+	}
+	return false
+}
+
+func (a *ServerAuthBasic) loadBasicAuth() {
+	file, err := os.Open(a.FileName)
+	if err != nil {
+		log.Printf("failed to load basic auth: %v", err)
+		return
+	}
+	defer file.Close()
+	buf, err := ioutil.ReadAll(file)
+	if err != nil {
+		log.Printf("failed to load basic auth: %v", err)
+		return
+	}
+	nextValue := strings.Trim(string(buf), " \r\n\t")
+	if (a.Value == "" && nextValue == "" && a.Watcher == nil) || (a.Value != "" && nextValue == "") {
+		log.Printf("set [empty] value to basic auth ...")
+	}
+	a.Value = nextValue
+
+	stat, err := file.Stat()
+	if err == nil {
+		a.Mtime = stat.ModTime()
+	}
+}
+
+func (a *ServerAuthBasic) checkModified() bool {
+	if a.FileName == "" {
+		return false
+	}
+	file, err := os.Open(a.FileName)
+	if err != nil {
+		return false
+	}
+	stat, err := file.Stat()
+	if err != nil {
+		return false
+	}
+	if a.Mtime.Equal(stat.ModTime()) {
+		return false
+	}
+	return true
+}
+
 type Server struct {
 	Searcher zoekt.Searcher
 
@@ -128,6 +206,7 @@ type Server struct {
 	lastStatsTS time.Time
 
 	SourceBaseDir string
+	BasicAuth ServerAuthBasic
 }
 
 func (s *Server) getTemplate(str string) *template.Template {
@@ -194,6 +273,11 @@ func NewMux(s *Server) (*http.ServeMux, error) {
 }
 
 func (s *Server) serveSearch(w http.ResponseWriter, r *http.Request) {
+	if !s.BasicAuth.checkAuth(r) {
+		w.WriteHeader(401)
+		w.Write(bytes.NewBufferString("Not authenticated.").Bytes())
+		return
+	}
 	err := s.serveSearchErr(w, r)
 
 	if suggest, ok := err.(*query.SuggestQueryError); ok {
@@ -309,6 +393,11 @@ func (s *Server) serveSearchErr(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (s *Server) servePrint(w http.ResponseWriter, r *http.Request) {
+	if !s.BasicAuth.checkAuth(r) {
+		w.WriteHeader(401)
+		w.Write(bytes.NewBufferString("Not authenticated.").Bytes())
+		return
+	}
 	err := s.servePrintErr(w, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusTeapot)
@@ -316,6 +405,11 @@ func (s *Server) servePrint(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) serveFSPrint(w http.ResponseWriter, r *http.Request) {
+	if !s.BasicAuth.checkAuth(r) {
+		w.WriteHeader(401)
+		w.Write(bytes.NewBufferString("Not authenticated.").Bytes())
+		return
+	}
 	err := s.serveFSPrintErr(w, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusTeapot)

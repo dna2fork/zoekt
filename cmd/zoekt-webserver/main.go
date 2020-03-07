@@ -109,7 +109,8 @@ func main() {
 	index := flag.String("index", build.DefaultDir, "set index directory to use")
 	html := flag.Bool("html", true, "enable HTML interface")
 	print := flag.Bool("print", false, "enable local result URLs")
-	fsbase := flag.String("fs_base_dir", "", "enable api to fetch file/directory contents")
+	fsbase := flag.String("fs_base_dir", "", "enable api to fetch file/directory contents (filepath)")
+	basicauth := flag.String("basic_auth", "", "enable basic auth in api invocation (filepath)")
 	enablePprof := flag.Bool("pprof", false, "set to enable remote profiling.")
 	sslCert := flag.String("ssl_cert", "", "set path to SSL .pem holding certificate.")
 	sslKey := flag.String("ssl_key", "", "set path to SSL .pem holding key.")
@@ -171,6 +172,7 @@ func main() {
 	s.Print = *print
 	s.SourceBaseDir = *fsbase
 	s.HTML = *html
+	s.BasicAuth.FileName = *basicauth
 
 	if *hostCustomization != "" {
 		s.HostCustomQueries = map[string]string{}
