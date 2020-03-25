@@ -85,6 +85,29 @@ var Funcmap = template.FuncMap{
 
 const defaultNumResults = 50
 
+func regexStringEscape(origin string, ch string) string {
+	parts := strings.Split(origin, ch)
+	N := len(parts) - 1
+	for i := 0; i < N; i ++ {
+		part := parts[i]
+		L := len(part)
+		C := 0
+		for j := L-1; j >= 0; j-- {
+			if part[j] != '\\' {
+				break
+			}
+			C ++
+		}
+		if C % 2 == 0 {
+			parts[i] = fmt.Sprintf("%s\\%s", parts[i], ch)
+		} else {
+			runes := []rune(part)
+			parts[i] = fmt.Sprintf("%s%s", string(runes[0:L-1]), ch)
+		}
+	}
+	return strings.Join(parts, "")
+}
+
 type ServerAuthBasic struct {
 	FileName string
 	Value string
@@ -302,7 +325,13 @@ func (s *Server) serveSearchErr(w http.ResponseWriter, r *http.Request) error {
 		return fmt.Errorf("no query found")
 	}
 
-	q, err := query.Parse(queryStr)
+	// ( <-> \(; ) <-> \); \) -> ); [ <-> \[; ] <-> \]
+	trQueryStr := regexStringEscape(queryStr, "(")
+	trQueryStr = regexStringEscape(trQueryStr, ")")
+	trQueryStr = regexStringEscape(trQueryStr, "[")
+	trQueryStr = regexStringEscape(trQueryStr, "]")
+
+	q, err := query.Parse(trQueryStr)
 	if err != nil {
 		return err
 	}
@@ -313,7 +342,7 @@ func (s *Server) serveSearchErr(w http.ResponseWriter, r *http.Request) error {
 		repoOnly = repoOnly && ok
 	})
 	if repoOnly {
-		return s.serveListReposErr(q, queryStr, w, r)
+		return s.serveListReposErr(q, trQueryStr, w, r)
 	}
 
 	numStr := qvals.Get("num")
@@ -361,7 +390,7 @@ func (s *Server) serveSearchErr(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	fileMatches, err := s.formatResults(result, queryStr, s.Print)
+	fileMatches, err := s.formatResults(result, trQueryStr, s.Print)
 	if err != nil {
 		return err
 	}
