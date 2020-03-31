@@ -200,6 +200,17 @@ func parseExpr(in []byte) (Q, int, error) {
 func regexpQuery(text string, content, file bool) (Q, error) {
 	var expr Q
 
+	// if specify path from repo root like `f:/path/to/folder`
+	// it may not find the correct file but `path/to/folder` works
+	// thus if `text` starts with '/', replace it with '^'
+	if file {
+		N := len(text)
+		if N > 0 && text[0] == '/' {
+			part := "^" + string([]rune(text)[1:])
+			text = part
+		}
+	}
+
 	r, err := syntax.Parse(text, syntax.ClassNL|syntax.PerlX|syntax.UnicodeGroups)
 	if err != nil {
 		return nil, err
