@@ -728,6 +728,16 @@ func isDirectory(path string) int {
 	if err != nil {
 		return -1;
 	}
+	if (f.Mode() & os.ModeSymlink != 0) {
+		linked, err := os.Readlink(path)
+		if err != nil {
+			return -1;
+		}
+		f, err = os.Stat(linked)
+		if err != nil {
+			return -1;
+		}
+	}
 	if (f.Mode().IsDir()) {
 		return 1;
 	}
@@ -752,11 +762,10 @@ func combileOneItemDirectory(dirname string, basename string) string {
 	if len(files) != 1 {
 		return basename
 	}
-	file := files[0]
-	if !file.IsDir() {
+	if isDirectory(filepath.Join(path, files[0].Name())) != 1 {
 		return basename
 	}
-	return combileOneItemDirectory(dirname, filepath.Join(basename, file.Name()))
+	return combileOneItemDirectory(dirname, filepath.Join(basename, files[0].Name()))
 }
 
 func sendDirectoryContents(w http.ResponseWriter, path string) error {
@@ -769,7 +778,8 @@ func sendDirectoryContents(w http.ResponseWriter, path string) error {
 	item_tpl := `{"name":"%s"},`
 	for _, file := range files {
 		name := file.Name()
-		if (file.IsDir()) {
+		subpath := filepath.Join(path, name)
+		if isDirectory(subpath) == 1 {
 			name = fmt.Sprintf("%s/", combileOneItemDirectory(path, name))
 		}
 		buf = fmt.Sprintf(`%s%s`, buf, fmt.Sprintf(item_tpl, jsonText(name)))
