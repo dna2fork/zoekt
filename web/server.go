@@ -790,11 +790,11 @@ func sendDirectoryContents(w http.ResponseWriter, path string) error {
 }
 
 func isBinary(data []byte, n int) bool {
-	for index, ch := range data {
+	for index, ch := range ([]rune(string(data[0:n]))) {
 		if index >= n {
 			break
 		}
-		if ch == 0 {
+		if ch == '\x00' {
 			return true
 		}
 	}
