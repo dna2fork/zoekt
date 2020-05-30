@@ -26,12 +26,12 @@ type IProject interface {
 	Sync() (map[string]string, error) // return filepath to store latest modified file list
 	Compile() error // virtually compile project; store metadata into disk: dump commit message, build ast tree ...
 	GetProjectType() string // return p4, git, ...
-	GetFileTextContents(filepath string) (string, error)
-	GetFileBinaryContents(filepath string, startOffset, endOffset int) ([]byte, error)
-	GetFileByteLength(filepath string) (int, error)
-	GetFileHash(filepath string) (string, error)
-	GetBlameInfo(filepath string, startLine, endLine int) ([]string, error)
-	GetCommitInfo(filepath string) ([]string, error)
+	GetFileTextContents(filepath, revision string) (string, error)
+	GetFileBinaryContents(filepath, revision string, startOffset, endOffset int) ([]byte, error)
+	GetFileByteLength(filepath, revision string) (int, error)
+	GetFileHash(filepath, revision string) (string, error)
+	GetBlameInfo(filepath, revision string, startLine, endLine int) ([]string, error)
+	GetCommitInfo(filepath, revision string) ([]string, error)
 }
 
 type P4Project struct {
@@ -94,7 +94,7 @@ func (p *P4Project) clone () (map[string]string, error) {
 		p.P4Port, p.P4User, p.P4Client, P4_BIN,
 	)
 	log.Println(cmd)
-	err := doExec(cmd, func (line string) {
+	err := Exec2Lines(cmd, func (line string) {
 		fmt.Println("p4:", line)
 	})
 	err = p.prepareP4folder()
@@ -106,7 +106,7 @@ func (p *P4Project) sync () (map[string]string, error) {
 		p.P4Port, p.P4User, p.P4Client, P4_BIN,
 	)
 	log.Println(cmd)
-	err := doExec(cmd, func (line string) {
+	err := Exec2Lines(cmd, func (line string) {
 		fmt.Println("p4:", line)
 	})
 	return nil, err
@@ -133,26 +133,26 @@ func (p *P4Project) GetProjectType () string {
 	return "p4"
 }
 
-func (p *P4Project) GetFileTextContents (filepath string) (string, error) {
+func (p *P4Project) GetFileTextContents (filepath, revision string) (string, error) {
 	return "", nil
 }
 
-func (p *P4Project) GetFileBinaryContents (filepath string) ([]byte, error) {
+func (p *P4Project) GetFileBinaryContents (filepath, revision string) ([]byte, error) {
 	return nil, nil
 }
 
-func (p *P4Project) GetFileHash (filepath string) (string, error) {
+func (p *P4Project) GetFileHash (filepath, revision string) (string, error) {
 	return "", nil
 }
 
-func (p *P4Project) GetFileByteLength (filepath string) {
+func (p *P4Project) GetFileByteLength (filepath, revision string) {
 }
 
-func (p *P4Project) GetBlameInfo (filepath string, startLine, endLine int) ([]string, error) {
+func (p *P4Project) GetBlameInfo (filepath, revision string, startLine, endLine int) ([]string, error) {
 	return nil, nil
 }
 
-func (p *P4Project) GetCommitInfo (filepath string) ([]string, error) {
+func (p *P4Project) GetCommitInfo (filepath, revision string) ([]string, error) {
 	return nil, nil
 }
 
@@ -184,7 +184,7 @@ func NewGitProject (projectName string, baseDir string, options map[string]strin
 func (p *GitProject) getCurrentBranch () (string, error) {
 	cmd := fmt.Sprintf("%s -C %s branch", GIT_BIN, p.BaseDir)
 	log.Println(cmd)
-	err := doExec(cmd, func (line string) {
+	err := Exec2Lines(cmd, func (line string) {
 		if strings.HasPrefix(line, "* ") {
 			p.Branch = strings.Fields(line)[1]
 		}
@@ -200,7 +200,7 @@ func (p *GitProject) clone () (map[string]string, error) {
 			GIT_BIN, p.Url, p.BaseDir,
 		)
 		log.Println(cmd)
-		err := doExec(cmd, nil)
+		err := Exec2Lines(cmd, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -211,7 +211,7 @@ func (p *GitProject) clone () (map[string]string, error) {
 			GIT_BIN, p.Url, p.Branch, p.BaseDir,
 		)
 		log.Println(cmd)
-		err := doExec(cmd, nil)
+		err := Exec2Lines(cmd, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -224,7 +224,7 @@ func (p *GitProject) sync () (map[string]string, error) {
 		GIT_BIN, p.BaseDir,
 	)
 	log.Println(cmd)
-	doExec(cmd, nil)
+	Exec2Lines(cmd, nil)
 	if p.Branch == "" {
 		p.getCurrentBranch()
 	}
@@ -233,7 +233,7 @@ func (p *GitProject) sync () (map[string]string, error) {
 		GIT_BIN, p.BaseDir, p.Branch,
 	)
 	log.Println(cmd)
-	err := doExec(cmd, nil)
+	err := Exec2Lines(cmd, nil)
 	return nil, err
 }
 func (p *GitProject) Sync () (map[string]string, error) {
@@ -258,25 +258,25 @@ func (p *GitProject) GetProjectType () string {
 	return "git"
 }
 
-func (p *GitProject) GetFileTextContents (filepath string) (string, error) {
+func (p *GitProject) GetFileTextContents (filepath, revision string) (string, error) {
 	return "", nil
 }
 
-func (p *GitProject) GetFileBinaryContents (filepath string) ([]byte, error) {
+func (p *GitProject) GetFileBinaryContents (filepath, revision string) ([]byte, error) {
 	return nil, nil
 }
 
-func (p *GitProject) GetFileHash (filepath string) (string, error) {
+func (p *GitProject) GetFileHash (filepath, revision string) (string, error) {
 	return "", nil
 }
 
-func (p *GitProject) GetFileByteLength (filepath string) {
+func (p *GitProject) GetFileByteLength (filepath, revision string) {
 }
 
-func (p *GitProject) GetBlameInfo (filepath string, startLine, endLine int) ([]string, error) {
+func (p *GitProject) GetBlameInfo (filepath, revision string, startLine, endLine int) ([]string, error) {
 	return nil, nil
 }
 
-func (p *GitProject) GetCommitInfo (filepath string) ([]string, error) {
+func (p *GitProject) GetCommitInfo (filepath, revision string) ([]string, error) {
 	return nil, nil
 }
