@@ -7,6 +7,8 @@ import (
 	"io"
 	"bufio"
 	"strings"
+	"crypto/sha512"
+	"encoding/hex"
 )
 
 type execOutputProcessor func (proc *exec.Cmd, stdout, stderr io.ReadCloser) error
@@ -108,4 +110,25 @@ func IsBinaryFile(filepath string) (bool, error) {
 	}
 	text := string(buf)
 	return strings.Contains(text, "\x00"), nil
+}
+
+func FileHash(filepath string) (string, error) {
+	f, err := os.Open(filepath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha512.New()
+	if _, err = io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func FileLen(filepath string) (int64, error) {
+	info, err := os.Stat(filepath)
+	if err != nil {
+		return -1, err
+	}
+	return info.Size(), nil
 }
