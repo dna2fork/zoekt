@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"regexp"
 )
 
 var (
@@ -88,41 +89,67 @@ func (p *P4Project) prepareP4folder () error {
 	return nil
 }
 
-func (p *P4Project) clone () (map[string]string, error) {
+// p4 output e.g. //depot/b#1 - added as /path/to/b
+var p4SyncLineMatcher = regexp.MustCompile(`^(.*)#(\d+) - (\w+) as (.*)$`)
+// when we manually remove all files in a client
+// and then do a force sync, p4 will output delete all files
+// and refreshing them ...
+var p4SyncLineRefreshMatcher = regexp.MustCompile(`^(.*)#(\d+) - refreshing (.*)$`)
+
+func (p *P4Project) extractSyncPath(line string, updatedList *map[string]string) {
+	parts := p4SyncLineMatcher.FindStringSubmatch(line)
+	if parts != nil {
+		filename := strings.TrimPrefix(parts[4], p.BaseDir)
+		(*updatedList)[filename] = parts[3]
+		return
+	}
+
+	parts = p4SyncLineRefreshMatcher.FindStringSubmatch(line)
+	if parts != nil {
+		filename := strings.TrimPrefix(parts[3], p.BaseDir)
+		(*updatedList)[filename] = "added"
+	}
+}
+
+func (p *P4Project) clone (updatedList *map[string]string) error {
 	cmd := fmt.Sprintf(
 		"P4PORT=%s P4USER=%s P4CLIENT=%s %s sync -f",
 		p.P4Port, p.P4User, p.P4Client, P4_BIN,
 	)
 	log.Println(cmd)
-	err := Exec2Lines(cmd, func (line string) {
-		fmt.Println("p4:", line)
-	})
+	err := Exec2Lines(cmd, nil)
+	doWalk(p.BaseDir, ".p4", updatedList)
 	err = p.prepareP4folder()
-	return nil, err
+	return err
 }
-func (p *P4Project) sync () (map[string]string, error) {
+
+func (p *P4Project) sync (updatedList *map[string]string) error {
 	cmd := fmt.Sprintf(
 		"P4PORT=%s P4USER=%s P4CLIENT=%s %s sync",
 		p.P4Port, p.P4User, p.P4Client, P4_BIN,
 	)
 	log.Println(cmd)
 	err := Exec2Lines(cmd, func (line string) {
-		fmt.Println("p4:", line)
+		p.extractSyncPath(line, updatedList)
 	})
-	return nil, err
+	return err
 }
+
 func (p *P4Project) Sync () (map[string]string, error) {
+	updatedList := make(map[string]string)
 	fileinfo, err := os.Stat(p.BaseDir)
 	if os.IsNotExist(err) {
-		return p.clone()
+		err = p.clone(&updatedList)
+		return updatedList, err
 	}
 	if err != nil {
-		return nil, err
+		return updatedList, err
 	}
 	if !fileinfo.IsDir() {
-		return nil, errors.New(fmt.Sprintf("P/%s: [E] cannot clone repo since \"%s\" is not a directory", p.Name))
+		return updatedList, errors.New(fmt.Sprintf("P/%s: [E] cannot clone repo since \"%s\" is not a directory", p.Name))
 	}
-	return p.sync()
+	err = p.sync(&updatedList)
+	return updatedList, err
 }
 
 func (p *P4Project) Compile () error {
@@ -192,7 +219,7 @@ func (p *GitProject) getCurrentBranch () (string, error) {
 	return p.Branch, err
 }
 
-func (p *GitProject) clone () (map[string]string, error) {
+func (p *GitProject) clone (updatedList *map[string]string) error {
 	cmd := ""
 	if p.Branch == "" {
 		cmd = fmt.Sprintf(
@@ -202,7 +229,7 @@ func (p *GitProject) clone () (map[string]string, error) {
 		log.Println(cmd)
 		err := Exec2Lines(cmd, nil)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		p.getCurrentBranch()
 	} else {
@@ -213,12 +240,32 @@ func (p *GitProject) clone () (map[string]string, error) {
 		log.Println(cmd)
 		err := Exec2Lines(cmd, nil)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
-	return nil, nil
+	doWalk(p.BaseDir, ".git", updatedList)
+	return nil
 }
-func (p *GitProject) sync () (map[string]string, error) {
+
+var gitSyncLineMatcher = regexp.MustCompile(`^diff --git a([/].*) b([/].*)$`)
+
+func (p *GitProject) extractSyncPath(line string, updatedList *map[string]string) {
+	parts := gitSyncLineMatcher.FindStringSubmatch(line)
+	if parts == nil {
+		return
+	}
+	a := parts[1]
+	b := parts[2]
+	if a == b {
+		(*updatedList)[b] = "modified"
+	} else {
+		// move a to b
+		(*updatedList)[a] = "deleted"
+		(*updatedList)[b] = "added"
+	}
+}
+
+func (p *GitProject) sync (updatedList *map[string]string) error {
 	cmd := fmt.Sprintf(
 		"%s -C %s fetch --all",
 		GIT_BIN, p.BaseDir,
@@ -228,26 +275,58 @@ func (p *GitProject) sync () (map[string]string, error) {
 	if p.Branch == "" {
 		p.getCurrentBranch()
 	}
+
 	cmd = fmt.Sprintf(
-		"%s -C %s reset --hard origin/%s",
+		"%s -C %s diff HEAD \"origin/%s\"",
 		GIT_BIN, p.BaseDir, p.Branch,
 	)
 	log.Println(cmd)
-	err := Exec2Lines(cmd, nil)
-	return nil, err
+	err := Exec2Lines(cmd, func (line string) {
+		p.extractSyncPath(line, updatedList)
+	})
+	for path, val := range *updatedList {
+		if val != "modified" {
+			continue
+		}
+		_, err := os.Stat(filepath.Join(p.BaseDir, path))
+		if os.IsNotExist(err) {
+			(*updatedList)[path] = "added"
+		}
+	}
+
+	cmd = fmt.Sprintf(
+		"%s -C %s reset --hard \"origin/%s\"",
+		GIT_BIN, p.BaseDir, p.Branch,
+	)
+	log.Println(cmd)
+	err = Exec2Lines(cmd, nil)
+	for path, val := range *updatedList {
+		if val != "modified" {
+			continue
+		}
+		_, err := os.Stat(filepath.Join(p.BaseDir, path))
+		if os.IsNotExist(err) {
+			(*updatedList)[path] = "deleted"
+		}
+	}
+	return err
 }
+
 func (p *GitProject) Sync () (map[string]string, error) {
+	updatedList := make(map[string]string)
 	fileinfo, err := os.Stat(p.BaseDir)
 	if os.IsNotExist(err) {
-		return p.clone()
+		err = p.clone(&updatedList)
+		return updatedList, err
 	}
 	if err != nil {
-		return nil, err
+		return updatedList, err
 	}
 	if !fileinfo.IsDir() {
-		return nil, errors.New(fmt.Sprintf("P/%s: [E] cannot clone repo since \"%s\" is not a directory", p.Name))
+		return updatedList, errors.New(fmt.Sprintf("P/%s: [E] cannot clone repo since \"%s\" is not a directory", p.Name))
 	}
-	return p.sync()
+	err = p.sync(&updatedList)
+	return updatedList, err
 }
 
 func (p *GitProject) Compile () error {
@@ -279,4 +358,21 @@ func (p *GitProject) GetBlameInfo (filepath, revision string, startLine, endLine
 
 func (p *GitProject) GetCommitInfo (filepath, revision string) ([]string, error) {
 	return nil, nil
+}
+
+func doWalk (baseDir string, ignoredDir string, updatedList *map[string]string) error {
+	return filepath.Walk(baseDir, func (path string, info os.FileInfo, err error) error {
+		if err != nil {
+			log.Printf("D/%s: [analysis.doWalk/W] cannot get file list ...\n", baseDir)
+			return err
+		}
+		if info.IsDir() {
+			if info.Name() == ignoredDir {
+				return filepath.SkipDir
+			}
+		} else {
+			(*updatedList)[strings.TrimPrefix(path, baseDir)] = "added"
+		}
+		return nil
+	})
 }
