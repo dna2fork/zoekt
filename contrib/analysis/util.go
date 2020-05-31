@@ -25,8 +25,7 @@ func Exec2Lines(cmd string, fn execLinesProcessor) error {
 		go watchTextOutput(proc, listener, stdout, fn)
 		go watchTextOutput(proc, listener, stderr, fn)
 		listener.Wait()
-		proc.Wait()
-		return nil
+		return proc.Wait()
 	})
 }
 
@@ -52,8 +51,7 @@ func Exec2Bytes(cmd string, fn execBytesProcessor) error {
 		listener.Add(1)
 		go watchByteOutput(proc, listener, stdout, fn)
 		listener.Wait()
-		proc.Wait()
-		return nil
+		return proc.Wait()
 	})
 }
 
@@ -112,6 +110,14 @@ func IsBinaryFile(filepath string) (bool, error) {
 	return strings.Contains(text, "\x00"), nil
 }
 
+func ioHash(stream io.ReadCloser) (string, error) {
+	h := sha512.New()
+	if _, err := io.Copy(h, stream); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
 func FileHash(filepath string) (string, error) {
 	f, err := os.Open(filepath)
 	if err != nil {
@@ -123,6 +129,21 @@ func FileHash(filepath string) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func ioLen(stream io.ReadCloser) (int64, error) {
+	buf := make([]byte, 1024 * 1204 * 1)
+	var L int64
+	L = 0
+	n, err := stream.Read(buf)
+	if err != nil { return -1, err }
+	L += int64(n)
+	for n >= 1024 * 1024 * 1 {
+		n, err = stream.Read(buf)
+		if err != nil { return -1, err }
+		L += int64(n)
+	}
+	return L, nil
 }
 
 func FileLen(filepath string) (int64, error) {
