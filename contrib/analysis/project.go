@@ -25,15 +25,91 @@ func init() {
 
 // IProject project operator interface
 type IProject interface {
+	GetBaseDir() string
 	Sync() (map[string]string, error) // return filepath to store latest modified file list
 	Compile() error // virtually compile project; store metadata into disk: dump commit message, build ast tree ...
 	GetProjectType() string // return p4, git, ...
 	GetFileTextContents(path, revision string) (string, error)
-	GetFileBinaryContents(path, revision string, startOffset, endOffset int) ([]byte, error)
+	GetFileBinaryContents(path, revision string) ([]byte, error)
 	GetFileLength(path, revision string) (int64, error)
 	GetFileHash(path, revision string) (string, error)
 	GetFileBlameInfo(path, revision string, startLine, endLine int) ([]string, error)
 	GetFileCommitInfo(path string, offset, N int) ([]string, error)
+}
+
+var _ IProject = &P4Project{}
+var _ IProject = &GitProject{}
+
+func NewProject (projectName string, baseDir string) IProject {
+	baseDir, err := filepath.Abs(baseDir)
+	if err != nil {
+		return nil
+	}
+	info, err := os.Stat(baseDir)
+	if err != nil {
+		return nil
+	}
+	options := make(map[string]string)
+	// git project:
+	// - .git
+	gitGuess := filepath.Join(baseDir, ".git")
+	info, err = os.Stat(gitGuess)
+	if err == nil {
+		if !info.IsDir() {
+			return nil
+		}
+		getGitProjectOptions(baseDir, &options)
+		return NewGitProject(projectName, baseDir, options)
+	}
+	// p4 project:
+	// - .p4
+	p4Guess := filepath.Join(baseDir, ".p4")
+	info, err = os.Stat(p4Guess)
+	if err == nil {
+		if !info.IsDir() {
+			return nil
+		}
+		getP4ProjectOptions(baseDir, &options)
+		return NewP4Project(projectName, baseDir, options)
+	}
+	// not support yet
+	return nil
+}
+
+var gitRemoteMatcher = regexp.MustCompile(`^origin\s+(.*)\s+\([a-z]+\)$`)
+
+func getGitProjectOptions(baseDir string, options *map[string]string) {
+	cmd := fmt.Sprintf("%s -C %s remote -v", GIT_BIN, baseDir)
+	Exec2Lines(cmd, func (line string) {
+		parts := gitRemoteMatcher.FindStringSubmatch(line)
+		if parts == nil {
+			return
+		}
+		(*options)["Url"] = parts[1]
+	})
+}
+
+func getP4ProjectOptions(baseDir string, options *map[string]string) {
+	configFilepath := filepath.Join(baseDir, ".p4", "config")
+	f, err := os.Open(configFilepath)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	// config file max size is 4KB
+	buf := make([]byte, 4096)
+	n, err := f.Read(buf)
+	if err != nil {
+		return
+	}
+	for _, keyval := range strings.Split(string(buf[0:n]), "\n") {
+		if keyval == "" {
+			continue
+		}
+		parts := strings.SplitN(keyval, "=", 2)
+		fmt.Println(keyval, parts)
+		(*options)[parts[0]] = parts[1]
+	}
 }
 
 // P4Project //////////////////////////////////////////////////////////////////
@@ -73,6 +149,10 @@ func NewP4Project (projectName string, baseDir string, options map[string]string
 	p := &P4Project{projectName, baseDir, port, user, client, p4Details{}};
 	p.getDetails()
 	return p
+}
+
+func (p *P4Project) GetBaseDir () string {
+	return p.BaseDir
 }
 
 var p4DetailRootMather = regexp.MustCompile(`^Root:\s+(.+)$`)
@@ -481,6 +561,10 @@ func NewGitProject (projectName string, baseDir string, options map[string]strin
 	}
 	p := &GitProject{projectName, baseDir, url, branch};
 	return p
+}
+
+func (p *GitProject) GetBaseDir () string {
+	return p.BaseDir
 }
 
 func (p *GitProject) getCurrentBranch () (string, error) {
