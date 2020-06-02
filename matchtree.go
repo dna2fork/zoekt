@@ -126,6 +126,7 @@ type substrMatchTree struct {
 	query         *query.Substring
 	caseSensitive bool
 	fileName      bool
+	exactMatch    bool
 
 	// mutable
 	current       []*candidateMatch
@@ -480,9 +481,23 @@ func (t *substrMatchTree) matches(cp *contentProvider, cost int, known map[match
 		if m.byteOffset == 0 && m.runeOffset > 0 {
 			m.byteOffset = cp.findOffset(m.fileName, m.runeOffset)
 		}
-		if m.matchContent(cp.data(m.fileName)) {
-			pruned = append(pruned, m)
+		bytesData := cp.data(m.fileName)
+		if !m.matchContent(bytesData) {
+			continue
 		}
+		if t.exactMatch {
+			runesData := []rune(string(bytesData))
+			runesLen := len(runesData)
+			patternLen := len(t.query.Pattern)
+			if m.runeOffset > 0 && !checkStopRune(runesData[m.runeOffset - 1]) {
+				continue
+			}
+			runeEndOffset := int(m.runeOffset) + patternLen
+			if runeEndOffset < runesLen && !checkStopRune(runesData[runeEndOffset]) {
+				continue
+			}
+		}
+		pruned = append(pruned, m)
 	}
 	t.current = pruned
 	t.contEvaluated = true
@@ -558,7 +573,7 @@ func (d *indexData) newMatchTree(q query.Q) (matchTree, error) {
 		}, err
 
 	case *query.Substring:
-		return d.newSubstringMatchTree(s)
+		return d.newSubstringMatchTree(s, false)
 
 	case *query.Branch:
 		mask := uint64(0)
@@ -597,7 +612,21 @@ func (d *indexData) newMatchTree(q query.Q) (matchTree, error) {
 		}, nil
 
 	case *query.Symbol:
-		mt, err := d.newSubstringMatchTree(s.Atom)
+		// we have len(s.Atom.Pattern) > 0 if enter here
+		runesPattern := []rune(s.Atom.Pattern)
+		lenPattern := len(runesPattern)
+		exactMatch := false
+		if runesPattern[0] == '^' && runesPattern[lenPattern - 1] == '$' && lenPattern > 2 {
+			exactMatch = true
+		}
+		var pattern string
+		if exactMatch {
+			pattern = string(runesPattern[1:lenPattern - 1])
+		} else {
+			pattern = s.Atom.Pattern
+		}
+		cloneQuery := &query.Substring{pattern, s.Atom.CaseSensitive, s.Atom.FileName, s.Atom.Content}
+		mt, err := d.newSubstringMatchTree(cloneQuery, exactMatch)
 		if err != nil {
 			return nil, err
 		}
@@ -610,18 +639,19 @@ func (d *indexData) newMatchTree(q query.Q) (matchTree, error) {
 			return nil, fmt.Errorf("found %T inside query.Symbol", mt)
 		}
 
-		subMT.matchIterator = d.newTrimByDocSectionIter(s.Atom, subMT.matchIterator)
+		subMT.matchIterator = d.newTrimByDocSectionIter(cloneQuery, subMT.matchIterator)
 		return subMT, nil
 	}
 	log.Panicf("type %T", q)
 	return nil, nil
 }
 
-func (d *indexData) newSubstringMatchTree(s *query.Substring) (matchTree, error) {
+func (d *indexData) newSubstringMatchTree(s *query.Substring, exactMatch bool) (matchTree, error) {
 	st := &substrMatchTree{
 		query:         s,
 		caseSensitive: s.CaseSensitive,
 		fileName:      s.FileName,
+		exactMatch:    exactMatch,
 	}
 
 	if utf8.RuneCountInString(s.Pattern) < ngramSize {
@@ -642,4 +672,19 @@ func (d *indexData) newSubstringMatchTree(s *query.Substring) (matchTree, error)
 	}
 	st.matchIterator = result
 	return st, nil
+}
+
+var stopRunes = [...]rune{
+	'~', '`', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')',
+	'+', '-', '=', '|', '\\', '{', '}', '[', ']', ':', ';', '"',
+	'\'', ',', '.', '<', '>', '/', '?', ' ', '\t', '\n', '\r',
+}
+
+func checkStopRune (ch rune) bool {
+	for _, x := range stopRunes {
+		if ch == x {
+			return true
+		}
+	}
+	return false
 }
