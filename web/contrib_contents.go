@@ -10,6 +10,8 @@ import (
 	"time"
 	"log"
 	"bytes"
+
+	"github.com/google/zoekt/contrib/analysis"
 )
 
 func escapeQuery(queryStr string) string {
@@ -291,29 +293,69 @@ func (s *Server) serveScmPrint(w http.ResponseWriter, r *http.Request) {
 		w.Write(bytes.NewBufferString("Not authenticated.").Bytes())
 		return
 	}
-	err := s.serveScmPrintErr(w, r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusTeapot)
-	}
-}
 
-func (s *Server) serveScmPrintErr(w http.ResponseWriter, r *http.Request) error {
+	if analysis.P4_BIN == "" || analysis.GIT_BIN == "" {
+		w.Write([]byte(`{"error":403, "reason": "git/p4 not found"}`))
+		return
+	}
+
 	qvals    := r.URL.Query()
 	action   := qvals.Get("a")
 	fileStr  := qvals.Get("f")
 	repoStr  := qvals.Get("r")
 	revision := qvals.Get("x")
+
+	baseDir  := fmt.Sprintf("%s/%s", s.SourceBaseDir, repoStr)
+	project  := analysis.NewProject(repoStr, baseDir)
+	if project == nil {
+		w.Write([]byte(fmt.Sprintf(`{"error":403, "reason": "'%s' not supported nor found"}`, repoStr)))
+		return
+	}
 	path := fmt.Sprintf("%s/%s%s", s.SourceBaseDir, repoStr, fileStr)
+
 	log.Println(action, "\t", path, revision);
-	result := isDirectory(path)
 	if !validatePath(path) {
 		w.Write([]byte(`{"error":403, "reason": "hacking detcted"}`))
-		return nil
+		return
 	}
-	if result == 1 {
-		return sendDirectoryContents(w, path)
-	} else if result == 0 {
-		return sendFileContents(w, path)
-	} // else r == -1: err / not exists
-	return nil
+
+	switch action {
+	case "get":
+		if strings.HasSuffix(fileStr, "/") {
+			fileList4aGet, err := project.GetDirContents(fileStr, revision)
+			if err != nil {
+				w.Write([]byte( fmt.Sprintf(`{"error":403, "reason": "%s"}`, jsonText(err.Error())) ))
+			}
+			sendScmDirectoryContents(w, fileList4aGet)
+		} else {
+			fileBin4aGet, err := project.GetFileBinaryContents(fileStr, revision)
+			if err != nil {
+				w.Write([]byte( fmt.Sprintf(`{"error":403, "reason": "%s"}`, jsonText(err.Error())) ))
+			}
+			sendScmFileContents(w, fileBin4aGet)
+		}
+	default:
+		w.Write([]byte( fmt.Sprintf(`{"error":403, "reason": "'%s' not support"}`, jsonText(action)) ))
+	}
+}
+
+func sendScmFileContents(w http.ResponseWriter, buf []byte) {
+	n := len(buf)
+	if n > 4096 { n = 4096 }
+	if isBinary(buf, n) {
+		w.Write([]byte(`{"error":403, "reason":"binary file"}`))
+		return
+	}
+	w.Write([]byte( fmt.Sprintf(`{"file":true, "contents":"%s"}`, jsonText(string(buf))) ))
+}
+
+func sendScmDirectoryContents(w http.ResponseWriter, nameList []string) {
+	buf := `{"directory":true, "contents":[`
+	item_tpl := `{"name":"%s"},`
+	for _, name := range nameList {
+		buf += fmt.Sprintf(item_tpl, jsonText(name))
+	}
+	buf += "null}"
+	w.Write([]byte(buf))
+	return
 }
