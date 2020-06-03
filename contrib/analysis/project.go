@@ -642,10 +642,20 @@ func NewGitProject (projectName string, baseDir string, options map[string]strin
 	}
 	branch, ok := options["Branch"]
 	if !ok {
-		log.Printf("P/%s: [W] missing Branch; using default\n", projectName)
 		branch = ""
 	}
 	p := &GitProject{projectName, baseDir, url, branch};
+	info, err := os.Stat(baseDir)
+	if err == nil {
+		if info.IsDir() {
+			p.getCurrentBranch()
+		} else {
+			log.Printf("P/%s: [E] %s is a file\n", projectName, baseDir)
+			return nil
+		}
+	} else {
+		log.Printf("P/%s: [W] missing Branch; using default\n", projectName)
+	}
 	return p
 }
 
