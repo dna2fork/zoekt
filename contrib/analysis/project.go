@@ -1,7 +1,6 @@
 package analysis
 
 import (
-	"errors"
 	"os"
 	"io"
 	"log"
@@ -35,6 +34,7 @@ type IProject interface {
 	GetFileHash(path, revision string) (string, error)
 	GetFileBlameInfo(path, revision string, startLine, endLine int) ([]string, error)
 	GetFileCommitInfo(path string, offset, N int) ([]string, error)
+	GetDirContents(path, revision string) ([]string, error)
 }
 
 var _ IProject = &P4Project{}
@@ -215,7 +215,7 @@ func (p *P4Project) prepareP4folder () error {
 	} else if err != nil {
 		return err
 	} else if !fileinfo.IsDir() {
-		return errors.New(".p4 has been used as a normal file not a directory")
+		return fmt.Errorf(".p4 has been used as a normal file not a directory")
 	}
 
 	p4config := filepath.Join(p4folder, "config")
@@ -288,7 +288,7 @@ func (p *P4Project) Sync () (map[string]string, error) {
 		return updatedList, err
 	}
 	if !fileinfo.IsDir() {
-		return updatedList, errors.New(fmt.Sprintf("P/%s: [E] cannot clone repo since \"%s\" is not a directory", p.Name))
+		return updatedList, fmt.Errorf("P/%s: [E] cannot clone repo since \"%s\" is not a directory", p.Name)
 	}
 	err = p.sync(&updatedList)
 	return updatedList, err
@@ -306,23 +306,54 @@ func (p *P4Project) GetProjectType () string {
 // - it is a special func for p4 only; to map a local path to server path
 // /client/root/path/to/file --> //depot/path/to/file
 func (p *P4Project) MapViewPath (path string) string {
+	if path == "/" {
+		for oneViewPath, oneLocalPath := range p.P4Details.Views {
+			path = strings.TrimSuffix(oneViewPath, strings.TrimPrefix(oneLocalPath, p.BaseDir))
+			return path
+		}
+		return ""
+	}
 	fullPath := filepath.Join(p.BaseDir, path)
 	matchedView := ""
 	matchedLocal := ""
 	maxLen := 0
 	for viewPath, localPath := range p.P4Details.Views {
+		fmt.Println(p.BaseDir, path, fullPath, localPath, viewPath)
 		if strings.HasPrefix(fullPath, localPath) {
 			n := len(localPath)
 			if n > maxLen {
 				matchedView = viewPath
 				matchedLocal = localPath
 			}
+		} else if fullPath + string(filepath.Separator) == localPath {
+			return viewPath
 		}
 	}
 	if matchedView == "" {
 		return ""
 	}
 	mappedPath := matchedView + strings.TrimPrefix(fullPath, matchedLocal)
+	return mappedPath
+}
+
+func (p *P4Project) MapLocalPath (serverPath string) string {
+	matchedView := ""
+	matchedLocal := ""
+	maxLen := 0
+	for viewPath, localPath := range p.P4Details.Views {
+		if strings.HasPrefix(serverPath, viewPath) {
+			n := len(viewPath)
+			if n > maxLen {
+				matchedView = viewPath
+				matchedLocal = localPath
+			}
+		}
+	}
+	if matchedLocal == "" {
+		return ""
+	}
+	mappedPath := matchedLocal + strings.TrimPrefix(serverPath, matchedView)
+	mappedPath = strings.TrimPrefix(mappedPath, p.BaseDir)
 	return mappedPath
 }
 
@@ -333,7 +364,7 @@ func (p *P4Project) GetFileTextContents (path, revision string) (string, error) 
 	}
 	T := string(B)
 	if strings.Index(T, "\x00") >= 0 {
-		return "", errors.New("binary")
+		return "", fmt.Errorf("binary")
 	}
 	return T, nil
 }
@@ -342,7 +373,7 @@ func (p *P4Project) GetFileBinaryContents (path, revision string) ([]byte, error
 	// P4CONFIG=.p4/config p4 print -q /path/to/file#54
 	url := p.MapViewPath(path)
 	if url == "" {
-		return nil, errors.New("non-tracked file")
+		return nil, fmt.Errorf("non-tracked file")
 	}
 	if revision != "" {
 		url += "#" + revision
@@ -362,7 +393,7 @@ func (p *P4Project) GetFileBinaryContents (path, revision string) ([]byte, error
 			L += n
 			if L > 1024 * 1024 * 10 {
 				// max reading size 10 MB
-				err = errors.New("larger than 10 MB")
+				err = fmt.Errorf("larger than 10 MB")
 				return
 			}
 			n, err = stream.Read(buf)
@@ -388,7 +419,7 @@ func (p *P4Project) GetFileHash (path, revision string) (string, error) {
 	} else {
 		url = p.MapViewPath(path)
 		if url == "" {
-			return "", errors.New("non-tracked file")
+			return "", fmt.Errorf("non-tracked file")
 		}
 		if revision != "" {
 			url += "#" + revision
@@ -416,7 +447,7 @@ func (p *P4Project) GetFileLength (path, revision string) (int64, error) {
 	} else {
 		url = p.MapViewPath(path)
 		if url == "" {
-			return -1, errors.New("non-tracked file")
+			return -1, fmt.Errorf("non-tracked file")
 		}
 		if revision != "" {
 			url += "#" + revision
@@ -444,7 +475,7 @@ func (p *P4Project) GetFileBlameInfo (path, revision string, startLine, endLine 
 	// Step 1: get fielog (ChangeNumber-Author map)
 	url := p.MapViewPath(path)
 	if url == "" {
-		return nil, errors.New("non-tracked file")
+		return nil, fmt.Errorf("non-tracked file")
 	}
 	cmd := fmt.Sprintf(
 		"P4CONFIG=%s/.p4/config %s filelog -s -i %s",
@@ -510,7 +541,7 @@ func (p *P4Project) GetFileCommitInfo (path string, offset, N int) ([]string, er
 	*/
 	url := p.MapViewPath(path)
 	if url == "" {
-		return nil, errors.New("non-tracked file")
+		return nil, fmt.Errorf("non-tracked file")
 	}
 	cmd := fmt.Sprintf(
 		"P4CONFIG=%s/.p4/config %s filelog -s %s",
@@ -535,6 +566,61 @@ func (p *P4Project) GetFileCommitInfo (path string, offset, N int) ([]string, er
 		// TODO: deal with extra info
 	})
 	return commits, nil
+}
+
+var p4NoSuchFileMatcher = regexp.MustCompile(`^.* - no such file\(s\)\.$`)
+var p4FoundFileMatcher = regexp.MustCompile(`^(.*)#(\d+) - [a-z/]+ change (\d+) .*$`)
+
+func (p *P4Project) GetDirContents (path, revision string) ([]string, error) {
+	serverPath := p.MapViewPath(path)
+	var suffix string
+	if revision != "" {
+		suffix = "#" + suffix
+	}
+	fmt.Println("server:", serverPath, "local:", path, "?:", p.P4Details.Views)
+	if serverPath == "" {
+		return nil, fmt.Errorf("path not found")
+	}
+	list := make([]string, 0)
+	if !strings.HasSuffix(serverPath, string(filepath.Separator)) {
+		serverPath = serverPath + string(filepath.Separator)
+	}
+	cmd := fmt.Sprintf(
+		"P4CONFIG=%s/.p4/config %s files -e %s*%s",
+		p.BaseDir, P4_BIN, serverPath, suffix,
+	)
+	log.Println(cmd)
+	Exec2Lines(cmd, func (line string) {
+		// //depot/path/to/file#4 - delete change 1234 (text)
+		// //depot/path/to/file#4 - branch change 1234 (text)
+		// //depot/path/to/file#4 - move/add change 1234 (text)
+		// //depot/path/to/file#4 - add change 1234 (text)
+		fmt.Println("p4 files ...", line)
+		parts := p4NoSuchFileMatcher.FindStringSubmatch(line)
+		if parts != nil {
+			return
+		}
+		parts = p4FoundFileMatcher.FindStringSubmatch(line)
+		checkLocal := p.MapLocalPath(parts[1])
+		if checkLocal != "" {
+			list = append(list, filepath.Base(parts[1]))
+		}
+	})
+	cmd = fmt.Sprintf(
+		"P4CONFIG=%s/.p4/config %s dirs -C %s*%s",
+		p.BaseDir, P4_BIN, serverPath, suffix,
+	)
+	log.Println(cmd)
+	Exec2Lines(cmd, func (line string) {
+		// //depot/path/to/dir
+		fmt.Println("p4 dirs ...", line)
+		parts := p4NoSuchFileMatcher.FindStringSubmatch(line)
+		if parts != nil {
+			return
+		}
+		list = append(list, filepath.Base(line) + "/")
+	})
+	return list, nil
 }
 
 // GitProject /////////////////////////////////////////////////////////////////
@@ -682,7 +768,7 @@ func (p *GitProject) Sync () (map[string]string, error) {
 		return updatedList, err
 	}
 	if !fileinfo.IsDir() {
-		return updatedList, errors.New(fmt.Sprintf("P/%s: [E] cannot clone repo since \"%s\" is not a directory", p.Name))
+		return updatedList, fmt.Errorf("P/%s: [E] cannot clone repo since \"%s\" is not a directory", p.Name)
 	}
 	err = p.sync(&updatedList)
 	return updatedList, err
@@ -703,7 +789,7 @@ func (p *GitProject) GetFileTextContents (path, revision string) (string, error)
 	}
 	T := string(B)
 	if strings.Index(T, "\x00") >= 0 {
-		return "", errors.New("binary")
+		return "", fmt.Errorf("binary")
 	}
 	return T, nil
 }
@@ -722,7 +808,7 @@ func (p *GitProject) GetFileBinaryContents (path, revision string) ([]byte, erro
 			L += n
 			if L > 1024 * 1024 * 10 {
 				// max reading size 10 MB
-				err = errors.New("larger than 10 MB")
+				err = fmt.Errorf("larger than 10 MB")
 				return
 			}
 			n, err = stream.Read(buf)
@@ -833,6 +919,40 @@ func (p *GitProject) GetFileCommitInfo (path string, offset, N int) ([]string, e
 		N --
 	})
 	return commits, nil
+}
+
+func (p *GitProject) GetDirContents (path, revision string) ([]string, error) {
+	path = filepath.Join(p.BaseDir, path)
+	if !strings.HasSuffix(path, string(filepath.Separator)) {
+		path += string(filepath.Separator)
+	}
+	list := make([]string, 0)
+	if p.Branch == "" {
+		p.getCurrentBranch()
+	}
+	if revision == "" {
+		revision = p.Branch
+	}
+	cmd := fmt.Sprintf(
+		"%s -C %s ls-tree --name-only %s -- %s",
+		GIT_BIN, p.BaseDir, revision, path,
+	)
+	log.Println(cmd)
+	Exec2Lines(cmd, func (line string) {
+		if line == "" {
+			return
+		}
+		fullPath := filepath.Join(p.BaseDir, line)
+		info, err := os.Stat(fullPath)
+		if err == nil {
+			if info.IsDir() {
+				list = append(list, line + "/")
+				return
+			}
+		}
+		list = append(list, line)
+	})
+	return list, nil
 }
 
 func doWalk (baseDir string, ignoredDir string, updatedList *map[string]string) error {
