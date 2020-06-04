@@ -10,6 +10,8 @@ import (
 	"time"
 	"log"
 	"bytes"
+	"encoding/json"
+	"strconv"
 
 	"github.com/google/zoekt/contrib/analysis"
 )
@@ -308,36 +310,103 @@ func (s *Server) serveScmPrint(w http.ResponseWriter, r *http.Request) {
 	baseDir  := fmt.Sprintf("%s/%s", s.SourceBaseDir, repoStr)
 	project  := analysis.NewProject(repoStr, baseDir)
 	if project == nil {
-		w.Write([]byte(fmt.Sprintf(`{"error":403, "reason": "'%s' not supported nor found"}`, repoStr)))
-		return
-	}
-	path := fmt.Sprintf("%s/%s%s", s.SourceBaseDir, repoStr, fileStr)
-
-	log.Println(action, "\t", path, revision);
-	if !validatePath(path) {
-		w.Write([]byte(`{"error":403, "reason": "hacking detcted"}`))
+		w.Write([]byte(fmt.Sprintf(`{"error":400, "reason": "'%s' not supported nor found"}`, repoStr)))
 		return
 	}
 
 	switch action {
 	case "get":
+		path := fmt.Sprintf("%s/%s%s", s.SourceBaseDir, repoStr, fileStr)
+		if !validatePath(path) {
+			w.Write([]byte(`{"error":400, "reason": "hacking detcted"}`))
+			return
+		}
 		if strings.HasSuffix(fileStr, "/") {
 			fileList4aGet, err := project.GetDirContents(fileStr, revision)
 			if err != nil {
-				w.Write([]byte( fmt.Sprintf(`{"error":403, "reason": "%s"}`, jsonText(err.Error())) ))
+				w.Write([]byte( fmt.Sprintf(`{"error":400, "reason": "%s"}`, jsonText(err.Error())) ))
 				return
 			}
 			sendScmDirectoryContents(w, fileList4aGet)
 		} else {
 			fileBin4aGet, err := project.GetFileBinaryContents(fileStr, revision)
 			if err != nil {
-				w.Write([]byte( fmt.Sprintf(`{"error":403, "reason": "%s"}`, jsonText(err.Error())) ))
+				w.Write([]byte( fmt.Sprintf(`{"error":400, "reason": "%s"}`, jsonText(err.Error())) ))
 				return
 			}
 			sendScmFileContents(w, fileBin4aGet)
 		}
+	case "commit":
+		if fileStr == "" {
+			if revision == "" {
+				// TODO: return top N project commits
+				w.Write([]byte(`{"error":400, "reason": "no revision"}`))
+				return
+			} else {
+				// get commit
+				commitDetails, err := project.GetCommitDetails(revision)
+				if err != nil {
+					w.Write([]byte( fmt.Sprintf(`{"error":400, "reason": "%s"}`, jsonText(err.Error())) ))
+					return
+				}
+				commitDetailsBytes, err := json.Marshal(commitDetails)
+				if err != nil {
+					w.Write([]byte( fmt.Sprintf(`{"error":400, "reason": "%s"}`, jsonText(err.Error())) ))
+					return
+				}
+				w.Write(commitDetailsBytes)
+				return
+			}
+		} else {
+			fileCommitList, err := project.GetFileCommitInfo(fileStr, 0, 20)
+			if err != nil {
+				return
+			}
+			fileCommitListBytes, err := json.Marshal(fileCommitList)
+			w.Write(fileCommitListBytes)
+		}
+	case "blame":
+		parts := strings.Split(qvals.Get("l"), ",")
+		stL := 0
+		edL := 0
+		var err error
+		if len(parts) == 1 {
+			if parts[0] == "" {
+				w.Write([]byte(`{"error":400, "reason": "no start line number"}`))
+				return
+			}
+			stL, err = strconv.Atoi(parts[0])
+			if err != nil {
+				w.Write([]byte(`{"error":400, "reason": "invalid start line number"}`))
+				return
+			}
+			edL = stL + 100
+		} else {
+			stL, err = strconv.Atoi(parts[0])
+			if err != nil {
+				w.Write([]byte(`{"error":400, "reason": "invalid start line number"}`))
+				return
+			}
+			edL, err = strconv.Atoi(parts[1])
+			if err != nil {
+				w.Write([]byte(`{"error":400, "reason": "invalid end line number"}`))
+				return
+			}
+		}
+		if fileStr == "" {
+			w.Write([]byte(`{"error":400, "reason": "no file"}`))
+			return
+		} else {
+			fileBlameList, err := project.GetFileBlameInfo(fileStr, revision, stL, edL)
+			if err != nil {
+				w.Write([]byte( fmt.Sprintf(`{"error":403, "reason": "%s"}`, jsonText(err.Error())) ))
+				return
+			}
+			fileBlameListBytes, err := json.Marshal(fileBlameList)
+			w.Write(fileBlameListBytes)
+		}
 	default:
-		w.Write([]byte( fmt.Sprintf(`{"error":403, "reason": "'%s' not support"}`, jsonText(action)) ))
+		w.Write([]byte( fmt.Sprintf(`{"error":400, "reason": "'%s' not support"}`, jsonText(action)) ))
 	}
 }
 

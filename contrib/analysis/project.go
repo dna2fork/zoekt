@@ -34,10 +34,15 @@ type IProject interface {
 	GetFileBinaryContents(path, revision string) ([]byte, error)
 	GetFileLength(path, revision string) (int64, error)
 	GetFileHash(path, revision string) (string, error)
-	GetFileBlameInfo(path, revision string, startLine, endLine int) ([]string, error)
-	GetFileCommitInfo(path string, offset, N int) ([]string, error)
+	GetFileBlameInfo(path, revision string, startLine, endLine int) ([]*BlameDetails, error)
+	GetFileCommitInfo(path string, offset, N int) ([]string, error) // N = -1 for dumping all
 	GetDirContents(path, revision string) ([]string, error)
 	GetCommitDetails(commitId string) (*CommitDetails, error)
+}
+
+type BlameDetails struct {
+	Author string					`json:"author"`
+	Commit string					`json:"commit"`
 }
 
 var _ IProject = &P4Project{}
@@ -469,7 +474,7 @@ func (p *P4Project) GetFileLength (path, revision string) (int64, error) {
 
 var p4AnnotateMatcher = regexp.MustCompile(`^(\d+):.*$`)
 
-func (p *P4Project) GetFileBlameInfo (path, revision string, startLine, endLine int) ([]string, error) {
+func (p *P4Project) GetFileBlameInfo (path, revision string, startLine, endLine int) ([]*BlameDetails, error) {
 	// P4CONFIG=.p4/config p4 annotate -q /path/to/file#54 (rev)
 	// P4CONFIG=.p4/config p4 annotate -I -q /path/to/file#54 (cln)
 
@@ -501,7 +506,7 @@ func (p *P4Project) GetFileBlameInfo (path, revision string, startLine, endLine 
 		p.BaseDir, P4_BIN, url,
 	)
 	printDebugCommand(cmd)
-	blames := make([]string, 0)
+	blames := make([]*BlameDetails, 0)
 	lastCommit := ""
 	lineNo := 1
 	Exec2Lines(cmd, func (line string) {
@@ -513,7 +518,13 @@ func (p *P4Project) GetFileBlameInfo (path, revision string, startLine, endLine 
 			C := parts[1]
 			author, ok := commits[C]
 			if !ok {
-				author = "(unknown)"
+				commitDetails, err := p.getCommitSummary(C)
+				if err == nil {
+					author = commitDetails.Author
+					commits[commitDetails.Id] = commitDetails.Author
+				} else {
+					author = "(unknown)"
+				}
 			}
 			if lastCommit == C {
 				C = "^"
@@ -521,7 +532,8 @@ func (p *P4Project) GetFileBlameInfo (path, revision string, startLine, endLine 
 			} else {
 				lastCommit = C
 			}
-			blames = append(blames, author)
+			details := &BlameDetails{C, author}
+			blames = append(blames, details)
 			lineNo ++
 			return
 		}
@@ -561,6 +573,7 @@ func (p *P4Project) GetFileCommitInfo (path string, offset, N int) ([]string, er
 				return
 			}
 			commits = append(commits, parts[2])
+			N --
 			return
 		}
 		parts = p4FilelogExtraMatcher.FindStringSubmatch(line)
@@ -869,9 +882,9 @@ func (p *GitProject) GetFileLength (path, revision string) (int64, error) {
 	}
 }
 
-var gitBlameLineMatcher = regexp.MustCompile(`^[a-f0-9]+ \(<(.*@.*)>\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \+\d{4})\s+\d+\) +.*$`)
+var gitBlameLineMatcher = regexp.MustCompile(`^\^?([a-f0-9]+) \(<(.*@.*)>\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+\-]\d{4})\s+\d+\) +.*$`)
 
-func (p *GitProject) GetFileBlameInfo (path, revision string, startLine, endLine int) ([]string, error) {
+func (p *GitProject) GetFileBlameInfo (path, revision string, startLine, endLine int) ([]*BlameDetails, error) {
 	var Lrange string
 	if endLine < 0 {
 		Lrange = ""
@@ -883,34 +896,39 @@ func (p *GitProject) GetFileBlameInfo (path, revision string, startLine, endLine
 		GIT_BIN, p.BaseDir, Lrange, revision, filepath.Join(p.BaseDir, path),
 	)
 	printDebugCommand(cmd)
-	blames := make([]string, 1)
-	lastEmail := ""
+	blames := make([]*BlameDetails, 0)
+	lastCommit := ""
 	Exec2Lines(cmd, func (line string) {
 		parts := gitBlameLineMatcher.FindStringSubmatch(line)
 		var email string
+		var commit string
 		if parts == nil {
 			email = "(unknown)"
+			commit = "(unknown)"
 		} else {
-			email = parts[1]
+			email = parts[2]
+			commit = parts[1]
 		}
-		if email == lastEmail {
+		if commit == lastCommit {
 			// to shorten blame emails for lines
 			email = "^"
+			commit = "^"
 		} else {
-			lastEmail = email
+			lastCommit = commit
 		}
-		blames = append(blames, email)
+		details := &BlameDetails{email, commit}
+		blames = append(blames, details)
 	})
 	return blames, nil
 }
 
 func (p *GitProject) GetFileCommitInfo (path string, offset, N int) ([]string, error) {
 	cmd := fmt.Sprintf(
-		"%s -C %s log --pretty=format:'%%H' -- %s",
+		"%s -C %s log --pretty=format:%%H -- %s",
 		GIT_BIN, p.BaseDir, filepath.Join(p.BaseDir, path),
 	)
 	printDebugCommand(cmd)
-	commits := make([]string, 1)
+	commits := make([]string, 0)
 	Exec2Lines(cmd, func (line string) {
 		if line == "" {
 			return

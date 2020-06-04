@@ -124,6 +124,51 @@ func (p *P4Project) GetCommitDetails (commitId string) (*CommitDetails, error) {
 	return details, nil
 }
 
+func (p *P4Project) getCommitSummary (commitId string) (*CommitDetails, error) {
+	cmd := fmt.Sprintf(
+		"P4PORT=%s P4USER=%s P4CLIENT=%s %s describe -s %s",
+		p.P4Port, p.P4User, p.P4Client, P4_BIN, commitId,
+	)
+	printDebugCommand(cmd)
+
+	details := &CommitDetails{}
+	finished := false
+	var err error
+	var parts []string
+	Exec2Lines(cmd, func (line string) {
+		if finished { return }
+		finished = true
+		parts = p4DescInvalidMatcher.FindStringSubmatch(line)
+		if parts != nil {
+			err = fmt.Errorf("%s", parts[1])
+			return
+		}
+		parts = p4DescCommitHeaderMatcher.FindStringSubmatch(line)
+		if parts == nil {
+			err = fmt.Errorf("invalid commit details")
+			return
+		}
+		details.Id = parts[1]
+		details.Author = parts[2]
+		t, timeErr := time.Parse(
+			time.RFC3339,
+			fmt.Sprintf(
+				"%s-%s-%sT%s:%s:%sZ",
+				parts[4], parts[5], parts[6], parts[7], parts[8], parts[9],
+			),
+		)
+		if timeErr != nil {
+			err = fmt.Errorf("invalid commit date")
+			return
+		}
+		details.Timestamp = t.Unix()
+	})
+	if err != nil {
+		return nil, err
+	}
+	return details, nil
+}
+
 var gitLogFatalMatcher = regexp.MustCompile(`^fatal: (.+)$`)
 var gitLogCommitIdMatcher = regexp.MustCompile(`^commit ([a-f0-9]+)$`)
 var gitLogAuthorMatcher = regexp.MustCompile(`^Author: (.*) <(.+@.+)>$`)
