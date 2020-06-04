@@ -325,12 +325,14 @@ func (s *Server) serveScmPrint(w http.ResponseWriter, r *http.Request) {
 			fileList4aGet, err := project.GetDirContents(fileStr, revision)
 			if err != nil {
 				w.Write([]byte( fmt.Sprintf(`{"error":403, "reason": "%s"}`, jsonText(err.Error())) ))
+				return
 			}
 			sendScmDirectoryContents(w, fileList4aGet)
 		} else {
 			fileBin4aGet, err := project.GetFileBinaryContents(fileStr, revision)
 			if err != nil {
 				w.Write([]byte( fmt.Sprintf(`{"error":403, "reason": "%s"}`, jsonText(err.Error())) ))
+				return
 			}
 			sendScmFileContents(w, fileBin4aGet)
 		}
