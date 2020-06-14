@@ -175,7 +175,7 @@ var gitLogAuthorMatcher = regexp.MustCompile(`^Author: (.*) <(.+@.+)>$`)
 var gitLogDateMatcher = regexp.MustCompile(`^Date:\s+(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) ([+\-]\d{2})(\d{2})$`)
 var gitLogMessageMatcher = regexp.MustCompile(`^    (.+)$`)
 var gitLogFileChangeMatcher = regexp.MustCompile(`^([ADMT])\s+(.+)$`)
-var gitLogFileMoveMatcher = regexp.MustCompile(`^([CR])\s.+ -> (.+)$`)
+var gitLogFileMoveMatcher = regexp.MustCompile(`^([CR])\s(.+) -> (.+)$`)
 
 func (p *GitProject) GetCommitDetails (commitId string) (*CommitDetails, error) {
 	cmd := fmt.Sprintf(
