@@ -2,6 +2,7 @@ package web
 
 import (
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"fmt"
 	"io/ioutil"
@@ -297,7 +298,7 @@ func (s *Server) serveScmPrint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if analysis.P4_BIN == "" || analysis.GIT_BIN == "" {
-		w.Write([]byte(`{"error":403, "reason": "git/p4 not found"}`))
+		utilErrorStr(w, "git/p4 not found", 500)
 		return
 	}
 
@@ -310,7 +311,7 @@ func (s *Server) serveScmPrint(w http.ResponseWriter, r *http.Request) {
 	baseDir  := fmt.Sprintf("%s/%s", s.SourceBaseDir, repoStr)
 	project  := analysis.NewProject(repoStr, baseDir)
 	if project == nil {
-		w.Write([]byte(fmt.Sprintf(`{"error":400, "reason": "'%s' not supported nor found"}`, repoStr)))
+		utilErrorStr(w, fmt.Sprintf("'%s' not supported nor found", repoStr), 400)
 		return
 	}
 
@@ -318,20 +319,20 @@ func (s *Server) serveScmPrint(w http.ResponseWriter, r *http.Request) {
 	case "get":
 		path := fmt.Sprintf("%s/%s%s", s.SourceBaseDir, repoStr, fileStr)
 		if !validatePath(path) {
-			w.Write([]byte(`{"error":400, "reason": "hacking detcted"}`))
+			utilErrorStr(w, "hacking detcted", 400)
 			return
 		}
 		if strings.HasSuffix(fileStr, "/") {
 			fileList4aGet, err := project.GetDirContents(fileStr, revision)
 			if err != nil {
-				w.Write([]byte( fmt.Sprintf(`{"error":400, "reason": "%s"}`, jsonText(err.Error())) ))
+				utilError(w, err, 400)
 				return
 			}
 			sendScmDirectoryContents(w, fileList4aGet)
 		} else {
 			fileBin4aGet, err := project.GetFileBinaryContents(fileStr, revision)
 			if err != nil {
-				w.Write([]byte( fmt.Sprintf(`{"error":400, "reason": "%s"}`, jsonText(err.Error())) ))
+				utilError(w, err, 400)
 				return
 			}
 			sendScmFileContents(w, fileBin4aGet)
@@ -340,18 +341,18 @@ func (s *Server) serveScmPrint(w http.ResponseWriter, r *http.Request) {
 		if fileStr == "" {
 			if revision == "" {
 				// TODO: return top N project commits
-				w.Write([]byte(`{"error":400, "reason": "no revision"}`))
+				utilErrorStr(w, "no revision", 400)
 				return
 			} else {
 				// get commit
 				commitDetails, err := project.GetCommitDetails(revision)
 				if err != nil {
-					w.Write([]byte( fmt.Sprintf(`{"error":400, "reason": "%s"}`, jsonText(err.Error())) ))
+					utilError(w, err, 500)
 					return
 				}
 				commitDetailsBytes, err := json.Marshal(commitDetails)
 				if err != nil {
-					w.Write([]byte( fmt.Sprintf(`{"error":400, "reason": "%s"}`, jsonText(err.Error())) ))
+					utilError(w, err, 500)
 					return
 				}
 				w.Write(commitDetailsBytes)
@@ -372,41 +373,44 @@ func (s *Server) serveScmPrint(w http.ResponseWriter, r *http.Request) {
 		var err error
 		if len(parts) == 1 {
 			if parts[0] == "" {
-				w.Write([]byte(`{"error":400, "reason": "no start line number"}`))
+				utilErrorStr(w, "no start line number", 400)
 				return
 			}
 			stL, err = strconv.Atoi(parts[0])
 			if err != nil {
-				w.Write([]byte(`{"error":400, "reason": "invalid start line number"}`))
+				utilErrorStr(w, "invalid start line number", 400)
 				return
 			}
 			edL = stL + 100
 		} else {
 			stL, err = strconv.Atoi(parts[0])
 			if err != nil {
-				w.Write([]byte(`{"error":400, "reason": "invalid start line number"}`))
+				utilErrorStr(w, "invalid start line number", 400)
 				return
 			}
 			edL, err = strconv.Atoi(parts[1])
 			if err != nil {
-				w.Write([]byte(`{"error":400, "reason": "invalid end line number"}`))
+				utilErrorStr(w, "invalid end line number", 400)
 				return
 			}
 		}
 		if fileStr == "" {
-			w.Write([]byte(`{"error":400, "reason": "no file"}`))
+			utilErrorStr(w, "no file", 400)
 			return
 		} else {
 			fileBlameList, err := project.GetFileBlameInfo(fileStr, revision, stL, edL)
 			if err != nil {
-				w.Write([]byte( fmt.Sprintf(`{"error":403, "reason": "%s"}`, jsonText(err.Error())) ))
+				utilError(w, err, 403)
 				return
 			}
 			fileBlameListBytes, err := json.Marshal(fileBlameList)
 			w.Write(fileBlameListBytes)
 		}
+	case "search":
+		s.contribSearchCommitInProject(project, qvals, w, r)
+		return
 	default:
-		w.Write([]byte( fmt.Sprintf(`{"error":400, "reason": "'%s' not support"}`, jsonText(action)) ))
+		utilErrorStr(w, fmt.Sprintf("'%s' not support", jsonText(action)), 400)
 	}
 }
 
@@ -414,7 +418,7 @@ func sendScmFileContents(w http.ResponseWriter, buf []byte) {
 	n := len(buf)
 	if n > 4096 { n = 4096 }
 	if isBinary(buf, n) {
-		w.Write([]byte(`{"error":403, "reason":"binary file"}`))
+		utilErrorStr(w, "binary file", 503)
 		return
 	}
 	w.Write([]byte( fmt.Sprintf(`{"file":true, "contents":"%s"}`, jsonText(string(buf))) ))
@@ -429,4 +433,62 @@ func sendScmDirectoryContents(w http.ResponseWriter, nameList []string) {
 	buf += "null}"
 	w.Write([]byte(buf))
 	return
+}
+
+func (s *Server) contribSearchCommitInProject(p analysis.IProject, keyval url.Values, w http.ResponseWriter, r *http.Request) {
+	q := keyval.Get("q")
+	n := keyval.Get("n")
+	if q == "" {
+		utilErrorStr(w, "empty query", 400)
+		return
+	}
+	num, err := strconv.Atoi(n)
+	if err != nil || num <= 0 {
+		num = defaultNumResults
+	}
+
+	result, err := p.SearchCommits(r.Context(), q, num)
+	if err != nil {
+		utilError(w, err, 500)
+		return
+	}
+
+	fileMatches, err := s.formatResults(result, q, s.Print)
+	if err != nil {
+		utilError(w, err, 500)
+		return
+	}
+
+	res := ResultInput{
+		Last: LastInput{
+			Query:     q,
+			Num:       num,
+			AutoFocus: true,
+		},
+		Stats:         result.Stats,
+		Query:         q,
+		QueryStr:      q,
+		SearchOptions: "",
+		FileMatches:   fileMatches,
+	}
+	if res.Stats.Wait < res.Stats.Duration/10 {
+		// Suppress queueing stats if they are neglible.
+		res.Stats.Wait = 0
+	}
+
+	var buf bytes.Buffer
+	if err := s.result.Execute(&buf, &res); err != nil {
+		utilError(w, err, 500)
+		return
+	}
+
+	w.Write(buf.Bytes())
+}
+
+func utilError(w http.ResponseWriter, err error, returnCode int) {
+		w.Write([]byte( fmt.Sprintf(`{"error":%d, "reason": "%s"}`, returnCode, jsonText(err.Error())) ))
+}
+
+func utilErrorStr(w http.ResponseWriter, text string, returnCode int) {
+		w.Write([]byte( fmt.Sprintf(`{"error":%d, "reason": "%s"}`, returnCode, jsonText(text)) ))
 }

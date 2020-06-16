@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 	"regexp"
+	"context"
+
+	"github.com/google/zoekt"
 )
 
 var (
@@ -38,6 +41,7 @@ type IProject interface {
 	GetFileCommitInfo(path string, offset, N int) ([]string, error) // N = -1 for dumping all
 	GetDirContents(path, revision string) ([]string, error)
 	GetCommitDetails(commitId string) (*CommitDetails, error)
+	SearchCommits(ctx context.Context, query string, num int) (*zoekt.SearchResult, error)
 }
 
 type BlameDetails struct {

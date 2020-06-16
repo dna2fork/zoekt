@@ -110,6 +110,19 @@ func IsBinaryFile(filepath string) (bool, error) {
 	return strings.Contains(text, "\x00"), nil
 }
 
+func IsEmptyFolder(filepath string) (bool, error) {
+	f, err := os.Open(filepath)
+   if err != nil {
+      return true, err
+   }
+   defer f.Close()
+   list, err := f.Readdir(1)
+   if err != nil {
+      return true, err
+   }
+   return len(list) == 0, nil
+}
+
 func ioHash(stream io.ReadCloser) (string, error) {
 	h := sha512.New()
 	if _, err := io.Copy(h, stream); err != nil {
