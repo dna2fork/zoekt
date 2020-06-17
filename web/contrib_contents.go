@@ -430,7 +430,7 @@ func sendScmDirectoryContents(w http.ResponseWriter, nameList []string) {
 	for _, name := range nameList {
 		buf += fmt.Sprintf(item_tpl, jsonText(name))
 	}
-	buf += "null}"
+	buf += "null]}"
 	w.Write([]byte(buf))
 	return
 }
