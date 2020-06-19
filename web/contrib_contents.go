@@ -409,6 +409,8 @@ func (s *Server) serveScmPrint(w http.ResponseWriter, r *http.Request) {
 	case "search":
 		s.contribSearchCommitInProject(project, qvals, w, r)
 		return
+	case "link":
+		s.contribGetLinkInProject(project, qvals, w, r)
 	default:
 		utilErrorStr(w, fmt.Sprintf("'%s' not support", jsonText(action)), 400)
 	}
@@ -418,7 +420,7 @@ func sendScmFileContents(w http.ResponseWriter, buf []byte) {
 	n := len(buf)
 	if n > 4096 { n = 4096 }
 	if isBinary(buf, n) {
-		utilErrorStr(w, "binary file", 503)
+		utilErrorStr(w, "binary file", 403)
 		return
 	}
 	w.Write([]byte( fmt.Sprintf(`{"file":true, "contents":"%s"}`, jsonText(string(buf))) ))
@@ -483,6 +485,21 @@ func (s *Server) contribSearchCommitInProject(p analysis.IProject, keyval url.Va
 	}
 
 	w.Write(buf.Bytes())
+}
+
+func (s *Server) contribGetLinkInProject(p analysis.IProject, keyval url.Values, w http.ResponseWriter, r *http.Request) {
+	f := keyval.Get("f")
+	switch p.(type) {
+	case *analysis.P4Project:
+		p4Project := p.(*analysis.P4Project)
+		f = p4Project.MapViewPath(f)
+		w.Write([]byte( fmt.Sprintf(`{"server":"%s", "path": "%s"}`, jsonText(p4Project.P4Port), jsonText(f)) ))
+	case *analysis.GitProject:
+		gitProject := p.(*analysis.GitProject)
+		w.Write([]byte( fmt.Sprintf(`{"server":"%s", "path": "%s"}`, jsonText(gitProject.Url), jsonText(f)) ))
+	default:
+		utilErrorStr(w, "not supported", 403)
+	}
 }
 
 func utilError(w http.ResponseWriter, err error, returnCode int) {
