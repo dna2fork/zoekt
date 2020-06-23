@@ -34,6 +34,7 @@ import (
 
 	"github.com/google/zoekt"
 	"github.com/google/zoekt/query"
+	"github.com/google/zoekt/contrib/keyval"
 )
 
 var Funcmap = template.FuncMap{
@@ -188,6 +189,10 @@ func NewMux(s *Server) (*http.ServeMux, error) {
 		}
 		mux.HandleFunc("/fsprint", s.serveFSPrint)
 		mux.HandleFunc("/scmprint", s.serveScmPrint)
+	}
+	if keyval.IsKeyvalFSEnabled() {
+		log.Printf("[kv] key-value service is running ...,")
+		mux.HandleFunc("/keyval", s.serveKeyval)
 	}
 
 	return mux, nil
