@@ -36,6 +36,10 @@ func init() {
 	defaultConfig.BaseDir += string(filepath.Separator)
 }
 
+func GetBaseDir() string {
+	return defaultConfig.BaseDir
+}
+
 func IsKeyvalFSEnabled() bool {
 	return defaultConfig.BaseDir != ""
 }

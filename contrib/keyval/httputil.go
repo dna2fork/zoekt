@@ -13,17 +13,7 @@ const (
 
 var defaultStorage = StorageFilesystem{}
 
-func StorageHandler(w http.ResponseWriter, r *http.Request) {
-	// modified original handler to bind to a specific path
-	qv := r.URL.Query()
-	cmd := qv.Get("a")
-	switch cmd {
-	default:
-		serveBasic(w, r)
-	}
-}
-
-func serveBasic(w http.ResponseWriter, r *http.Request) {
+func ServeBasic(w http.ResponseWriter, r *http.Request) {
 	// /keyval/_?k=keyval://path/to/sth&sk=index/0000
 	// -> /storage/keyval/path/to/sth/_/index/0000
 	qv := r.URL.Query()

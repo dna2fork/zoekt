@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"strconv"
 
+	"github.com/google/zoekt"
 	"github.com/google/zoekt/contrib/analysis"
 )
 
@@ -455,6 +456,10 @@ func (s *Server) contribSearchCommitInProject(p analysis.IProject, keyval url.Va
 		return
 	}
 
+	s.contribRenderSearchResult(result, q, num, w, r)
+}
+
+func (s *Server) contribRenderSearchResult(result *zoekt.SearchResult, q string, num int, w http.ResponseWriter, r *http.Request) {
 	fileMatches, err := s.formatResults(result, q, s.Print)
 	if err != nil {
 		utilError(w, err, 500)

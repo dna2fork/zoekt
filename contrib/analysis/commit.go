@@ -9,8 +9,6 @@ import (
 	"context"
 
 	"github.com/google/zoekt"
-	"github.com/google/zoekt/query"
-	"github.com/google/zoekt/shards"
 )
 
 type CommitFileInfo struct {
@@ -278,63 +276,17 @@ func (p *GitProject) GetCommitDetails (commitId string) (*CommitDetails, error) 
 	return details, nil
 }
 
-func commitSearch(indexPath string, ctx context.Context, q string, num int) (*zoekt.SearchResult, error) {
-	empty, err := IsEmptyFolder(indexPath)
-	if err != nil {
-		return nil, err
-	}
-	if empty {
-		return nil, fmt.Errorf("invalid index path")
-	}
-	printDebugCommand(fmt.Sprintf("search in '%s'", indexPath))
-	searcher, err := shards.NewDirectorySearcher(indexPath)
-	if err != nil {
-		return nil, err
-	}
-	defer searcher.Close()
-	Q, err := query.Parse(q)
-	sOpts := zoekt.SearchOptions{
-		MaxWallTime: 10 * time.Second,
-	}
-	sOpts.SetDefaults()
-	// limit doc number in case there are too many
-	// ref: web/server.go
-	if plan, err := searcher.Search(ctx, Q, &zoekt.SearchOptions{EstimateDocCount: true}); err != nil {
-		return nil, err
-	} else if numdocs := plan.ShardFilesConsidered; numdocs > 10000 {
-		// 10k docs, top 50 -> max match/important = 275/4
-		sOpts.ShardMaxMatchCount = num*5 + (5*num)/(numdocs/1000)
-		sOpts.ShardMaxImportantMatch = num/20 + num/(numdocs/500)
-	} else {
-		n := numdocs + num*100
-		sOpts.ShardMaxImportantMatch = n
-		sOpts.ShardMaxMatchCount = n
-		sOpts.TotalMaxMatchCount = n
-	}
-	sOpts.MaxDocDisplayCount = num
-	// ref: api.go
-	// sres.Files -> f.LineMatches
-	// f.Language, f.Branches, string(f.Checksum), f.Filename, f.Repository
-	// f.Version
-	// m.LineNumber, m.Line, m.LineFragments -> x
-	// x.LineOffset, x.MatchLength
-	sres, err :=  searcher.Search(ctx, Q, &sOpts)
-	if err != nil {
-		return nil, err
-	}
-	return sres, nil
-}
-
 // ref: contrib/analysis/metadata.go
 // define folder structure; /path/to/repo/.<type>/.zoekt/index
 // TODO: add "r:commit"
 
 func (p *P4Project) SearchCommits(ctx context.Context, query string, num int) (*zoekt.SearchResult, error) {
 	path := filepath.Join(p.BaseDir, ".p4", ".zoekt", "index")
-	return commitSearch(path, ctx, query, num)
+	return SearchByIndexPath(path, ctx, query, num)
 }
 
 func (p *GitProject) SearchCommits(ctx context.Context, query string, num int) (*zoekt.SearchResult, error) {
 	path := filepath.Join(p.BaseDir, ".git", ".zoekt", "index")
-	return commitSearch(path, ctx, query, num)
+	return SearchByIndexPath(path, ctx, query, num)
 }
+
