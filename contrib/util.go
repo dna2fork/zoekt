@@ -13,10 +13,14 @@ import (
 	"time"
 	"fmt"
 	"log"
+	"path/filepath"
+	"io/ioutil"
 
 	"github.com/google/zoekt"
 	"github.com/google/zoekt/query"
 	"github.com/google/zoekt/shards"
+	"github.com/google/zoekt/build"
+	"go.uber.org/automaxprocs/maxprocs"
 )
 
 type execOutputProcessor func (proc *exec.Cmd, stdout, stderr io.ReadCloser) error
@@ -189,7 +193,7 @@ func FileLen(filepath string) (int64, error) {
 }
 
 
-func SearchByIndexPath(indexPath string, ctx context.Context, q string, num int) (*zoekt.SearchResult, error) {
+func Search(indexPath string, ctx context.Context, q string, num int) (*zoekt.SearchResult, error) {
 	empty, err := IsEmptyFolder(indexPath)
 	if err != nil {
 		return nil, err
@@ -236,3 +240,98 @@ func SearchByIndexPath(indexPath string, ctx context.Context, q string, num int)
 	return sres, nil
 }
 
+// ref: cmd/zoekt-index/main.go
+
+type fileInfo struct {
+	name string
+	size int64
+}
+
+type fileAggregator struct {
+	ignoreDirs map[string]struct{}
+	sizeMax    int64
+	sink       chan fileInfo
+}
+
+func (a *fileAggregator) add(path string, info os.FileInfo, err error) error {
+	if err != nil {
+		return err
+	}
+
+	if info.IsDir() {
+		base := filepath.Base(path)
+		if _, ok := a.ignoreDirs[base]; ok {
+			return filepath.SkipDir
+		}
+	}
+
+	if info.Mode().IsRegular() {
+		a.sink <- fileInfo{path, info.Size()}
+	}
+	return nil
+}
+
+func Index(indexPath, sourcePath string, ignoreDirs []string) error {
+	maxprocs.Set()
+	opts := build.Options{}
+	ignoreDirMap := map[string]struct{}{}
+	for _, d := range ignoreDirs {
+		d = strings.TrimSpace(d)
+		if d != "" {
+			ignoreDirMap[d] = struct{}{}
+		}
+	}
+	opts.SetDefaults()
+	sourcePath, err := filepath.Abs(filepath.Clean(sourcePath))
+	if err != nil {
+		return err
+	}
+	is, err := IsEmptyFolder(sourcePath)
+	if err != nil {
+		return err
+	}
+	if is {
+		return fmt.Errorf("no file for indexing")
+	}
+	opts.IndexDir = indexPath
+	opts.RepositoryDescription.Source = sourcePath
+	opts.RepositoryDescription.Name = filepath.Base(sourcePath)
+	builder, err := build.NewBuilder(opts)
+	if err != nil {
+		return err
+	}
+	defer builder.Finish()
+	comm := make(chan fileInfo, 100)
+	agg := fileAggregator{
+		ignoreDirs: ignoreDirMap,
+		sink:       comm,
+		sizeMax:    int64(opts.SizeMax),
+	}
+
+	go func() {
+		if err := filepath.Walk(sourcePath, agg.add); err != nil {
+			log.Fatal(err)
+		}
+		close(comm)
+	}()
+
+	pathPrefix := sourcePath + string(filepath.Separator)
+	for f := range comm {
+		displayName := strings.TrimPrefix(f.name, pathPrefix)
+		if f.size > int64(opts.SizeMax) && !opts.IgnoreSizeMax(displayName) {
+			builder.Add(zoekt.Document{
+				Name:       displayName,
+				SkipReason: fmt.Sprintf("document size %d larger than limit %d", f.size, opts.SizeMax),
+			})
+			continue
+		}
+		content, err := ioutil.ReadFile(f.name)
+		if err != nil {
+			return err
+		}
+
+		builder.AddFile(displayName, content)
+	}
+
+	return builder.Finish()
+}

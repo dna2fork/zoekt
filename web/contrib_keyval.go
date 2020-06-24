@@ -43,7 +43,7 @@ func (s *Server) contribSearchKeyval(indexPath string, keyval url.Values, w http
 		num = defaultNumResults
 	}
 
-	result, err := contrib.SearchByIndexPath(indexPath, r.Context(), q, num)
+	result, err := contrib.Search(indexPath, r.Context(), q, num)
 	if err != nil {
 		utilError(w, err, 500)
 		return

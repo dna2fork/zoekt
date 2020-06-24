@@ -283,11 +283,11 @@ func (p *GitProject) GetCommitDetails (commitId string) (*CommitDetails, error) 
 
 func (p *P4Project) SearchCommits(ctx context.Context, query string, num int) (*zoekt.SearchResult, error) {
 	path := filepath.Join(p.BaseDir, ".p4", ".zoekt", "index")
-	return contrib.SearchByIndexPath(path, ctx, query, num)
+	return contrib.Search(path, ctx, query, num)
 }
 
 func (p *GitProject) SearchCommits(ctx context.Context, query string, num int) (*zoekt.SearchResult, error) {
 	path := filepath.Join(p.BaseDir, ".git", ".zoekt", "index")
-	return contrib.SearchByIndexPath(path, ctx, query, num)
+	return contrib.Search(path, ctx, query, num)
 }
 
