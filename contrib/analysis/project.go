@@ -973,13 +973,17 @@ func (p *GitProject) GetDirContents (path, revision string) ([]string, error) {
 		}
 		fullPath := filepath.Join(p.BaseDir, line)
 		info, err := os.Stat(fullPath)
+		prefix := strings.TrimPrefix(path, p.BaseDir)
+                line = "/" + line
 		if err == nil {
+			// XXX: fix for windows? line.replaceAll("\\", "/")
 			if info.IsDir() {
-				list = append(list, line + "/")
+                        	line = line + "/"
+				list = append(list, strings.TrimPrefix(line, prefix))
 				return
 			}
 		}
-		list = append(list, line)
+		list = append(list, strings.TrimPrefix(line, prefix))
 	})
 	return list, nil
 }

@@ -59,7 +59,7 @@ function zoektBrowseResultRenderForFile(elem, obj) {
    a.className = 'browse-folder';
    a.setAttribute('data-repo', obj.meta.repo);
    var updir = obj.meta.path.split('/');
-   updir.pop(); updir.pop();
+   updir.pop();
    updir = updir.join('/');
    a.setAttribute('data-path', updir?(updir + '/'):'/');
    div.appendChild(a);
