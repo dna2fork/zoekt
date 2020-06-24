@@ -69,11 +69,41 @@ function zoektBrowseResultRenderForFile(elem, obj) {
    elem.appendChild(pre);
 }
 
+var zoektSpace = /\s/;
+var zoektStop = /[`~!@#$%\^&*()-+=|\\{}\[\]<>:;"',.\/?]/;
 function zoektFileRender(elem, text) {
-   var div, span;
+   var div, lastSpan;
    text.split('\n').forEach(function (line) {
       div = document.createElement('div');
       div.appendChild(document.createTextNode(line));
+      /* - tokenize source code
+      // 0 = lastCh, 1 = lastSpace, 2 = lastStop
+      var stat = 0;
+      lastSpan = null;
+      line.split('').forEach(function (ch) {
+         if (zoektSpace.test(ch)) {
+            if (stat !== 1) {
+               lastSpan = document.createElement('span');
+               div.appendChild(lastSpan);
+            }
+            lastSpan.appendChild(document.createTextNode(ch));
+            stat = 1;
+         } else if (zoektStop.test(ch)) {
+            lastSpan = document.createElement('span');
+            div.appendChild(lastSpan);
+            lastSpan.appendChild(document.createTextNode(ch));
+            stat = 2;
+         } else {
+            if (stat !== 0 || !lastSpan) {
+               lastSpan = document.createElement('span');
+               div.appendChild(lastSpan);
+            }
+            lastSpan.appendChild(document.createTextNode(ch));
+            stat = 0;
+         }
+      });
+      */
+      if (!line.length) div.innerHTML = '&nbsp;';
       elem.appendChild(div);
    });
 }

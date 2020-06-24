@@ -23,7 +23,6 @@ function zoektSearchResultRenderForRepositories(pre, obj) {
 }
 
 function zoektSearchResultRenderForHits(pre, obj) {
-   //pre.appendChild(document.createTextNode(JSON.stringify(obj, null, 3)));
    var div, a;
    obj.hits.forEach(function (item) {
       if (!item) return;
@@ -35,12 +34,20 @@ function zoektSearchResultRenderForHits(pre, obj) {
       a.setAttribute('data-path', '/' + item.filename);
       a.appendChild(document.createTextNode('/' + item.repository + '/' + item.filename));
       div.appendChild(a);
-      // if (item.matches.length > 1) item.matches.sort(function (a, b) { return a.linenumber - b.linenumber; });
+      if (item.matches.length > 1) item.matches.sort(function (a, b) { return a.linenumber - b.linenumber; });
+      var N = 0; // max line number string length
+      if (item.matches.length) {
+         N = item.matches.map(
+            function (x) { return ('' + x.linenumber).length; }
+         ).reduce(
+            function (a, b) { return a>b?a:b }
+         );
+      }
       item.matches.forEach(function (match) {
          var line = document.createElement('div');
          if (match.linenumber) {
             var span = document.createElement('span');
-            span.innerHTML = match.linenumber;
+            span.innerHTML = paddingNumber(match.linenumber, N);
             line.appendChild(span);
             line.innerHTML += ' ' + match.text;
          } else {
@@ -51,6 +58,12 @@ function zoektSearchResultRenderForHits(pre, obj) {
       div.style.marginTop = '5px';
       pre.appendChild(div);
    });
+
+   function paddingNumber(num, N) {
+      var str = '' + num;
+      while (str.length < N) str = '&nbsp;' + str;
+      return str;
+   }
 }
 
 function zoektSearchEvents() {
