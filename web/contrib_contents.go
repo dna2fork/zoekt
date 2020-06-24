@@ -501,7 +501,7 @@ func (s *Server) contribGetLinkInProject(p analysis.IProject, keyval url.Values,
 		w.Write([]byte( fmt.Sprintf(`{"server":"%s", "path": "%s"}`, jsonText(p4Project.P4Port), jsonText(f)) ))
 	case *analysis.GitProject:
 		gitProject := p.(*analysis.GitProject)
-		w.Write([]byte( fmt.Sprintf(`{"server":"%s", "path": "%s"}`, jsonText(gitProject.Url), jsonText(f)) ))
+		w.Write([]byte( fmt.Sprintf(`{"server":"%s", "path": "%s", "branch": "%s"}`, jsonText(gitProject.Url), jsonText(f), jsonText(gitProject.Branch)) ))
 	default:
 		utilErrorStr(w, "not supported", 403)
 	}
