@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/google/zoekt/contrib/analysis"
+	"github.com/google/zoekt/contrib"
 	"github.com/google/zoekt/contrib/keyval"
 )
 
@@ -43,7 +43,7 @@ func (s *Server) contribSearchKeyval(indexPath string, keyval url.Values, w http
 		num = defaultNumResults
 	}
 
-	result, err := analysis.SearchByIndexPath(indexPath, r.Context(), q, num)
+	result, err := contrib.SearchByIndexPath(indexPath, r.Context(), q, num)
 	if err != nil {
 		utilError(w, err, 500)
 		return

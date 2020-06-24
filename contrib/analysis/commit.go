@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/zoekt"
+	"github.com/google/zoekt/contrib"
 )
 
 type CommitFileInfo struct {
@@ -45,7 +46,7 @@ func (p *P4Project) GetCommitDetails (commitId string) (*CommitDetails, error) {
 		"P4PORT=%s P4USER=%s P4CLIENT=%s %s describe -s %s",
 		p.P4Port, p.P4User, p.P4Client, P4_BIN, commitId,
 	)
-	printDebugCommand(cmd)
+	contrib.PrintDebugCommand(cmd)
 
 	// status:
 	// - -1: error
@@ -58,7 +59,7 @@ func (p *P4Project) GetCommitDetails (commitId string) (*CommitDetails, error) {
 	details.CommitFiles = make([]*CommitFileInfo, 0)
 	var err error
 	var parts []string
-	Exec2Lines(cmd, func (line string) {
+	contrib.Exec2Lines(cmd, func (line string) {
 		switch status {
 		case -1:
 			return
@@ -133,13 +134,13 @@ func (p *P4Project) getCommitSummary (commitId string) (*CommitDetails, error) {
 		"P4PORT=%s P4USER=%s P4CLIENT=%s %s describe -s %s",
 		p.P4Port, p.P4User, p.P4Client, P4_BIN, commitId,
 	)
-	printDebugCommand(cmd)
+	contrib.PrintDebugCommand(cmd)
 
 	details := &CommitDetails{}
 	finished := false
 	var err error
 	var parts []string
-	Exec2Lines(cmd, func (line string) {
+	contrib.Exec2Lines(cmd, func (line string) {
 		if finished { return }
 		finished = true
 		parts = p4DescInvalidMatcher.FindStringSubmatch(line)
@@ -186,7 +187,7 @@ func (p *GitProject) GetCommitDetails (commitId string) (*CommitDetails, error) 
 		`%s -C %s log --name-status --date=iso --diff-filter=ACDMRT -1 -U %s`,
 		GIT_BIN, p.BaseDir, commitId,
 	)
-	printDebugCommand(cmd)
+	contrib.PrintDebugCommand(cmd)
 
 	// status:
 	// - -1: error
@@ -199,7 +200,7 @@ func (p *GitProject) GetCommitDetails (commitId string) (*CommitDetails, error) 
 	details.CommitFiles = make([]*CommitFileInfo, 0)
 	var err error
 	var parts []string
-	Exec2Lines(cmd, func (line string) {
+	contrib.Exec2Lines(cmd, func (line string) {
 		switch status {
 		case -1:
 			return
@@ -282,11 +283,11 @@ func (p *GitProject) GetCommitDetails (commitId string) (*CommitDetails, error) 
 
 func (p *P4Project) SearchCommits(ctx context.Context, query string, num int) (*zoekt.SearchResult, error) {
 	path := filepath.Join(p.BaseDir, ".p4", ".zoekt", "index")
-	return SearchByIndexPath(path, ctx, query, num)
+	return contrib.SearchByIndexPath(path, ctx, query, num)
 }
 
 func (p *GitProject) SearchCommits(ctx context.Context, query string, num int) (*zoekt.SearchResult, error) {
 	path := filepath.Join(p.BaseDir, ".git", ".zoekt", "index")
-	return SearchByIndexPath(path, ctx, query, num)
+	return contrib.SearchByIndexPath(path, ctx, query, num)
 }
 

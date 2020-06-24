@@ -11,20 +11,19 @@ import (
 	"context"
 
 	"github.com/google/zoekt"
+	"github.com/google/zoekt/contrib"
 )
 
 var (
 	P4_BIN string
 	GIT_BIN string
 	CTAGS_BIN string
-	DEBUG_ON bool
 )
 
 func init() {
 	P4_BIN = os.Getenv("ZOEKT_P4_BIN")
 	GIT_BIN = os.Getenv("ZOEKT_GIT_BIN")
 	CTAGS_BIN = os.Getenv("ZOEKT_CTAGS_BIN")
-	DEBUG_ON = os.Getenv("ZOEKT_DEBUG") != ""
 }
 
 // IProject project operator interface
@@ -92,7 +91,7 @@ var gitRemoteMatcher = regexp.MustCompile(`^origin\s+(.*)\s+\([a-z]+\)$`)
 
 func getGitProjectOptions(baseDir string, options *map[string]string) {
 	cmd := fmt.Sprintf("%s -C %s remote -v", GIT_BIN, baseDir)
-	Exec2Lines(cmd, func (line string) {
+	contrib.Exec2Lines(cmd, func (line string) {
 		parts := gitRemoteMatcher.FindStringSubmatch(line)
 		if parts == nil {
 			return
@@ -178,9 +177,9 @@ func (p *P4Project) getDetails () error {
 		"P4PORT=%s P4USER=%s P4CLIENT=%s %s client -o",
 		p.P4Port, p.P4User, p.P4Client, P4_BIN,
 	)
-	printDebugCommand(cmd)
+	contrib.PrintDebugCommand(cmd)
 	viewMapLines := false
-	err := Exec2Lines(cmd, func (line string) {
+	err := contrib.Exec2Lines(cmd, func (line string) {
 		if strings.HasPrefix(line, "#") {
 			return
 		}
@@ -269,8 +268,8 @@ func (p *P4Project) clone (updatedList *map[string]string) error {
 		"P4PORT=%s P4USER=%s P4CLIENT=%s %s sync -f",
 		p.P4Port, p.P4User, p.P4Client, P4_BIN,
 	)
-	printDebugCommand(cmd)
-	err := Exec2Lines(cmd, nil)
+	contrib.PrintDebugCommand(cmd)
+	err := contrib.Exec2Lines(cmd, nil)
 	doWalk(p.BaseDir, ".p4", updatedList)
 	err = p.prepareP4folder()
 	return err
@@ -281,8 +280,8 @@ func (p *P4Project) sync (updatedList *map[string]string) error {
 		"P4PORT=%s P4USER=%s P4CLIENT=%s %s sync",
 		p.P4Port, p.P4User, p.P4Client, P4_BIN,
 	)
-	printDebugCommand(cmd)
-	err := Exec2Lines(cmd, func (line string) {
+	contrib.PrintDebugCommand(cmd)
+	err := contrib.Exec2Lines(cmd, func (line string) {
 		p.extractSyncPath(line, updatedList)
 	})
 	return err
@@ -392,11 +391,11 @@ func (p *P4Project) GetFileBinaryContents (path, revision string) ([]byte, error
 		"P4CONFIG=%s/.p4/config %s print -q %s",
 		p.BaseDir, P4_BIN, url,
 	)
-	printDebugCommand(cmd)
+	contrib.PrintDebugCommand(cmd)
 	var err error
 	B := make([]byte, 0)
 	L := 0
-	Exec2Bytes(cmd, func (stream io.ReadCloser) {
+	contrib.Exec2Bytes(cmd, func (stream io.ReadCloser) {
 		n := 1024 * 1024 * 1
 		buf := make([]byte, n)
 		for n >= 1024 * 1024 * 1 {
@@ -425,7 +424,7 @@ func (p *P4Project) GetFileHash (path, revision string) (string, error) {
 	var url string
 	if revision == "" {
 		url = filepath.Join(p.BaseDir, path)
-		return FileHash(url)
+		return contrib.FileHash(url)
 	} else {
 		url = p.MapViewPath(path)
 		if url == "" {
@@ -438,11 +437,11 @@ func (p *P4Project) GetFileHash (path, revision string) (string, error) {
 			"P4CONFIG=%s/.p4/config %s print -q %s",
 			p.BaseDir, P4_BIN, url,
 		)
-		printDebugCommand(cmd)
+		contrib.PrintDebugCommand(cmd)
 		var hash string
 		var err error
-		Exec2Bytes(cmd, func (stream io.ReadCloser) {
-			hash, err = ioHash(stream)
+		contrib.Exec2Bytes(cmd, func (stream io.ReadCloser) {
+			hash, err = contrib.IoHash(stream)
 		})
 		return hash, err
 	}
@@ -453,7 +452,7 @@ func (p *P4Project) GetFileLength (path, revision string) (int64, error) {
 	var url string
 	if revision == "" {
 		url = filepath.Join(p.BaseDir, path)
-		return FileLen(url)
+		return contrib.FileLen(url)
 	} else {
 		url = p.MapViewPath(path)
 		if url == "" {
@@ -466,11 +465,11 @@ func (p *P4Project) GetFileLength (path, revision string) (int64, error) {
 			"P4CONFIG=%s/.p4/config %s print -q %s",
 			p.BaseDir, P4_BIN, url,
 		)
-		printDebugCommand(cmd)
+		contrib.PrintDebugCommand(cmd)
 		var L int64
 		var err error
-		Exec2Bytes(cmd, func (stream io.ReadCloser) {
-			L, err = ioLen(stream)
+		contrib.Exec2Bytes(cmd, func (stream io.ReadCloser) {
+			L, err = contrib.IoLen(stream)
 		})
 		return L, err
 	}
@@ -491,9 +490,9 @@ func (p *P4Project) GetFileBlameInfo (path, revision string, startLine, endLine 
 		"P4CONFIG=%s/.p4/config %s filelog -s -i %s",
 		p.BaseDir, P4_BIN, url,
 	)
-	printDebugCommand(cmd)
+	contrib.PrintDebugCommand(cmd)
 	commits := make(map[string]string, 0)
-	Exec2Lines(cmd, func (line string) {
+	contrib.Exec2Lines(cmd, func (line string) {
 		parts := p4FilelogRevMatcher.FindStringSubmatch(line)
 		if parts != nil {
 			commits[parts[2]] = parts[5]
@@ -509,11 +508,11 @@ func (p *P4Project) GetFileBlameInfo (path, revision string, startLine, endLine 
 		"P4CONFIG=%s/.p4/config %s annotate -q -c -I %s",
 		p.BaseDir, P4_BIN, url,
 	)
-	printDebugCommand(cmd)
+	contrib.PrintDebugCommand(cmd)
 	blames := make([]*BlameDetails, 0)
 	lastCommit := ""
 	lineNo := 1
-	Exec2Lines(cmd, func (line string) {
+	contrib.Exec2Lines(cmd, func (line string) {
 		parts := p4AnnotateMatcher.FindStringSubmatch(line)
 		if parts != nil {
 			if lineNo < startLine || lineNo > endLine {
@@ -564,9 +563,9 @@ func (p *P4Project) GetFileCommitInfo (path string, offset, N int) ([]string, er
 		"P4CONFIG=%s/.p4/config %s filelog -s %s",
 		p.BaseDir, P4_BIN, url,
 	)
-	printDebugCommand(cmd)
+	contrib.PrintDebugCommand(cmd)
 	commits := make([]string, 0)
-	Exec2Lines(cmd, func (line string) {
+	contrib.Exec2Lines(cmd, func (line string) {
 		parts := p4FilelogRevMatcher.FindStringSubmatch(line)
 		if parts != nil {
 			if offset > 0 {
@@ -606,8 +605,8 @@ func (p *P4Project) GetDirContents (path, revision string) ([]string, error) {
 		"P4CONFIG=%s/.p4/config %s files -e %s*%s",
 		p.BaseDir, P4_BIN, serverPath, suffix,
 	)
-	printDebugCommand(cmd)
-	Exec2Lines(cmd, func (line string) {
+	contrib.PrintDebugCommand(cmd)
+	contrib.Exec2Lines(cmd, func (line string) {
 		// //depot/path/to/file#4 - delete change 1234 (text)
 		// //depot/path/to/file#4 - branch change 1234 (text)
 		// //depot/path/to/file#4 - move/add change 1234 (text)
@@ -626,8 +625,8 @@ func (p *P4Project) GetDirContents (path, revision string) ([]string, error) {
 		"P4CONFIG=%s/.p4/config %s dirs -C %s*%s",
 		p.BaseDir, P4_BIN, serverPath, suffix,
 	)
-	printDebugCommand(cmd)
-	Exec2Lines(cmd, func (line string) {
+	contrib.PrintDebugCommand(cmd)
+	contrib.Exec2Lines(cmd, func (line string) {
 		// //depot/path/to/dir
 		parts := p4NoSuchFileMatcher.FindStringSubmatch(line)
 		if parts != nil {
@@ -680,8 +679,8 @@ func (p *GitProject) GetBaseDir () string {
 
 func (p *GitProject) getCurrentBranch () (string, error) {
 	cmd := fmt.Sprintf("%s -C %s branch", GIT_BIN, p.BaseDir)
-	printDebugCommand(cmd)
-	err := Exec2Lines(cmd, func (line string) {
+	contrib.PrintDebugCommand(cmd)
+	err := contrib.Exec2Lines(cmd, func (line string) {
 		if strings.HasPrefix(line, "* ") {
 			p.Branch = strings.Fields(line)[1]
 		}
@@ -696,8 +695,8 @@ func (p *GitProject) clone (updatedList *map[string]string) error {
 			"%s clone %s %s",
 			GIT_BIN, p.Url, p.BaseDir,
 		)
-		printDebugCommand(cmd)
-		err := Exec2Lines(cmd, nil)
+		contrib.PrintDebugCommand(cmd)
+		err := contrib.Exec2Lines(cmd, nil)
 		if err != nil {
 			return err
 		}
@@ -707,8 +706,8 @@ func (p *GitProject) clone (updatedList *map[string]string) error {
 			"%s clone %s -b %s %s",
 			GIT_BIN, p.Url, p.Branch, p.BaseDir,
 		)
-		printDebugCommand(cmd)
-		err := Exec2Lines(cmd, nil)
+		contrib.PrintDebugCommand(cmd)
+		err := contrib.Exec2Lines(cmd, nil)
 		if err != nil {
 			return err
 		}
@@ -740,8 +739,8 @@ func (p *GitProject) sync (updatedList *map[string]string) error {
 		"%s -C %s fetch --all",
 		GIT_BIN, p.BaseDir,
 	)
-	printDebugCommand(cmd)
-	Exec2Lines(cmd, nil)
+	contrib.PrintDebugCommand(cmd)
+	contrib.Exec2Lines(cmd, nil)
 	if p.Branch == "" {
 		p.getCurrentBranch()
 	}
@@ -750,8 +749,8 @@ func (p *GitProject) sync (updatedList *map[string]string) error {
 		"%s -C %s diff HEAD \"origin/%s\"",
 		GIT_BIN, p.BaseDir, p.Branch,
 	)
-	printDebugCommand(cmd)
-	err := Exec2Lines(cmd, func (line string) {
+	contrib.PrintDebugCommand(cmd)
+	err := contrib.Exec2Lines(cmd, func (line string) {
 		p.extractSyncPath(line, updatedList)
 	})
 	for path, val := range *updatedList {
@@ -768,8 +767,8 @@ func (p *GitProject) sync (updatedList *map[string]string) error {
 		"%s -C %s reset --hard \"origin/%s\"",
 		GIT_BIN, p.BaseDir, p.Branch,
 	)
-	printDebugCommand(cmd)
-	err = Exec2Lines(cmd, nil)
+	contrib.PrintDebugCommand(cmd)
+	err = contrib.Exec2Lines(cmd, nil)
 	for path, val := range *updatedList {
 		if val != "modified" {
 			continue
@@ -822,11 +821,11 @@ func (p *GitProject) GetFileTextContents (path, revision string) (string, error)
 func (p *GitProject) GetFileBinaryContents (path, revision string) ([]byte, error) {
 	url := fmt.Sprintf("%s:%s", revision, strings.TrimLeft(path, string(filepath.Separator)))
 	cmd := fmt.Sprintf("%s -C %s show %s", GIT_BIN, p.BaseDir, url)
-	printDebugCommand(cmd)
+	contrib.PrintDebugCommand(cmd)
 	var err error
 	B := make([]byte, 0)
 	L := 0
-	Exec2Bytes(cmd, func (stream io.ReadCloser) {
+	contrib.Exec2Bytes(cmd, func (stream io.ReadCloser) {
 		n := 1024 * 1024 * 1
 		buf := make([]byte, n)
 		for n >= 1024 * 1024 * 1 {
@@ -854,15 +853,15 @@ func (p *GitProject) GetFileHash (path, revision string) (string, error) {
 	var url string
 	if revision == "" {
 		url = filepath.Join(p.BaseDir, path)
-		return FileHash(url)
+		return contrib.FileHash(url)
 	} else {
 		url = fmt.Sprintf("%s:%s", revision, strings.TrimLeft(path, string(filepath.Separator)))
 		cmd := fmt.Sprintf("%s -C %s show %s", GIT_BIN, p.BaseDir, url)
-		printDebugCommand(cmd)
+		contrib.PrintDebugCommand(cmd)
 		var hash string
 		var err error
-		Exec2Bytes(cmd, func (stream io.ReadCloser) {
-			hash, err = ioHash(stream)
+		contrib.Exec2Bytes(cmd, func (stream io.ReadCloser) {
+			hash, err = contrib.IoHash(stream)
 		})
 		return hash, err
 	}
@@ -872,15 +871,15 @@ func (p *GitProject) GetFileLength (path, revision string) (int64, error) {
 	var url string
 	if revision == "" {
 		url = filepath.Join(p.BaseDir, path)
-		return FileLen(url)
+		return contrib.FileLen(url)
 	} else {
 		url = fmt.Sprintf("%s:%s", revision, strings.TrimLeft(path, string(filepath.Separator)))
 		cmd := fmt.Sprintf("%s -C %s show %s", GIT_BIN, p.BaseDir, url)
-		printDebugCommand(cmd)
+		contrib.PrintDebugCommand(cmd)
 		var L int64
 		var err error
-		Exec2Bytes(cmd, func (stream io.ReadCloser) {
-			L, err = ioLen(stream)
+		contrib.Exec2Bytes(cmd, func (stream io.ReadCloser) {
+			L, err = contrib.IoLen(stream)
 		})
 		return L, err
 	}
@@ -899,10 +898,10 @@ func (p *GitProject) GetFileBlameInfo (path, revision string, startLine, endLine
 		"%s -C %s blame -e -l %s %s -- %s",
 		GIT_BIN, p.BaseDir, Lrange, revision, filepath.Join(p.BaseDir, path),
 	)
-	printDebugCommand(cmd)
+	contrib.PrintDebugCommand(cmd)
 	blames := make([]*BlameDetails, 0)
 	lastCommit := ""
-	Exec2Lines(cmd, func (line string) {
+	contrib.Exec2Lines(cmd, func (line string) {
 		parts := gitBlameLineMatcher.FindStringSubmatch(line)
 		var email string
 		var commit string
@@ -931,9 +930,9 @@ func (p *GitProject) GetFileCommitInfo (path string, offset, N int) ([]string, e
 		"%s -C %s log --pretty=format:%%H -- %s",
 		GIT_BIN, p.BaseDir, filepath.Join(p.BaseDir, path),
 	)
-	printDebugCommand(cmd)
+	contrib.PrintDebugCommand(cmd)
 	commits := make([]string, 0)
-	Exec2Lines(cmd, func (line string) {
+	contrib.Exec2Lines(cmd, func (line string) {
 		if line == "" {
 			return
 		}
@@ -967,8 +966,8 @@ func (p *GitProject) GetDirContents (path, revision string) ([]string, error) {
 		"%s -C %s ls-tree --name-only %s -- %s",
 		GIT_BIN, p.BaseDir, revision, path,
 	)
-	printDebugCommand(cmd)
-	Exec2Lines(cmd, func (line string) {
+	contrib.PrintDebugCommand(cmd)
+	contrib.Exec2Lines(cmd, func (line string) {
 		if line == "" {
 			return
 		}
@@ -1002,7 +1001,3 @@ func doWalk (baseDir string, ignoredDir string, updatedList *map[string]string) 
 	})
 }
 
-func printDebugCommand(cmd string) {
-	if !DEBUG_ON { return }
-	log.Println(cmd)
-}
