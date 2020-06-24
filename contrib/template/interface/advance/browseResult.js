@@ -65,8 +65,17 @@ function zoektBrowseResultRenderForFile(elem, obj) {
    div.appendChild(a);
    elem.appendChild(div);
    var pre = document.createElement('pre');
-   pre.appendChild(document.createTextNode(obj.contents));
+   zoektFileRender(pre, obj.contents);
    elem.appendChild(pre);
+}
+
+function zoektFileRender(elem, text) {
+   var div, span;
+   text.split('\n').forEach(function (line) {
+      div = document.createElement('div');
+      div.appendChild(document.createTextNode(line));
+      elem.appendChild(div);
+   });
 }
 
 function zoektBrowseEvents() {

@@ -10,6 +10,7 @@ function zoektSearchResultRender(pre, obj) {
 
 function zoektSearchResultRenderForRepositories(pre, obj) {
    obj.repositories.forEach(function (item) {
+      if (!item) return;
       var div = document.createElement('div');
       var a = document.createElement('a');
       a.href = 'javascript:void(0)';
@@ -22,7 +23,34 @@ function zoektSearchResultRenderForRepositories(pre, obj) {
 }
 
 function zoektSearchResultRenderForHits(pre, obj) {
-   pre.appendChild(document.createTextNode(JSON.stringify(obj, null, 3)));
+   //pre.appendChild(document.createTextNode(JSON.stringify(obj, null, 3)));
+   var div, a;
+   obj.hits.forEach(function (item) {
+      if (!item) return;
+      div = document.createElement('div');
+      a = document.createElement('a');
+      a.href = 'javascript:void(0)';
+      a.className = 'browse-file';
+      a.setAttribute('data-repo', item.repository);
+      a.setAttribute('data-path', '/' + item.filename);
+      a.appendChild(document.createTextNode('/' + item.repository + '/' + item.filename));
+      div.appendChild(a);
+      // if (item.matches.length > 1) item.matches.sort(function (a, b) { return a.linenumber - b.linenumber; });
+      item.matches.forEach(function (match) {
+         var line = document.createElement('div');
+         if (match.linenumber) {
+            var span = document.createElement('span');
+            span.innerHTML = match.linenumber;
+            line.appendChild(span);
+            line.innerHTML += ' ' + match.text;
+         } else {
+            line.innerHTML = match.text;
+         }
+         div.append(line);
+      });
+      div.style.marginTop = '5px';
+      pre.appendChild(div);
+   });
 }
 
 function zoektSearchEvents() {
