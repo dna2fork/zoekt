@@ -68,6 +68,12 @@ a {
    background-color: #ffcccc;
 }
 
+pre.source-code {
+   width: 100%;
+   overflow-x: auto;
+   tab-size: 4;
+}
+
    </style>
 </head>
 <body>
@@ -159,6 +165,7 @@ function zoektSearchTrigger() {
          var pre = document.createElement('pre');
          // searchResult.js#zoektSearchResultRender
          zoektSearchResultRender(pre, obj);
+         pre.className = 'source-code';
          div.innerHTML = '';
          div.appendChild(pre);
       } else {
@@ -322,7 +329,7 @@ function zoektBrowseResultRenderForFolder(elem, obj) {
    var updir = obj.meta.path.split('/');
    updir.pop(); updir.pop();
    updir = updir.join('/');
-   a.setAttribute('data-path', updir?(updir + '/'):'/');
+   a.setAttribute('data-path', updir?(updir + '/'):'');
    div.appendChild(a);
    elem.appendChild(div);
    obj.contents.forEach(function (item) {
@@ -359,6 +366,7 @@ function zoektBrowseResultRenderForFile(elem, obj) {
    elem.appendChild(div);
    var pre = document.createElement('pre');
    zoektFileRender(pre, obj.contents);
+   pre.className = 'source-code';
    elem.appendChild(pre);
 }
 
@@ -407,6 +415,12 @@ function zoektBrowseEvents() {
       if (evt.target.classList.contains('browse-folder') || evt.target.classList.contains('browse-file')) {
          var repo = evt.target.getAttribute('data-repo');
          var path = evt.target.getAttribute('data-path');
+         if (path === '') {
+            // index.js#zoektSearchTrigger
+            document.querySelector('#txt_query').value = 'r:';
+            zoektSearchTrigger();
+            return;
+         }
          // browseResult.js#zoektBrowse
          zoektBrowse({ a: 'get', r: repo, f: path }).then(function (xhr) {
             var input = document.querySelector('#txt_query');

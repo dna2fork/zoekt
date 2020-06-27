@@ -61,3 +61,9 @@ a {
    border: 1px solid red;
    background-color: #ffcccc;
 }
+
+pre.source-code {
+   width: 100%;
+   overflow-x: auto;
+   tab-size: 4;
+}

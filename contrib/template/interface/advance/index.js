@@ -76,6 +76,7 @@ function zoektSearchTrigger() {
          var pre = document.createElement('pre');
          // searchResult.js#zoektSearchResultRender
          zoektSearchResultRender(pre, obj);
+         pre.className = 'source-code';
          div.innerHTML = '';
          div.appendChild(pre);
       } else {
