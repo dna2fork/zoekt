@@ -342,6 +342,9 @@ func (p *P4Project) MapViewPath (path string) string {
 		return ""
 	}
 	mappedPath := matchedView + strings.TrimPrefix(fullPath, matchedLocal)
+	if strings.HasSuffix(path, string(filepath.Separator)) && !strings.HasSuffix(mappedPath, "/") {
+		mappedPath += "/"
+	}
 	return mappedPath
 }
 
