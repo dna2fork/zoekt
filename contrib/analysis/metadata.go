@@ -9,6 +9,10 @@ type Metadata struct {
    e.g.
    /path/to/project/.git/
       /.zoekt/
+         /cache/
+            /remote # store remote link / p4 client cache
+                    # so that zoekt do not need to call git/p4 every time
+                    # to get such information
          /file/
             /path/to/file/
                /@latest/...

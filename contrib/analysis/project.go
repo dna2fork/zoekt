@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"fmt"
+	"bufio"
 	"path/filepath"
 	"strings"
 	"regexp"
@@ -170,62 +171,107 @@ var p4DetailOwnerMather = regexp.MustCompile(`^Owner:\s+(.+)$`)
 var p4DetailViewMather = regexp.MustCompile(`^View:$`)
 // TODO: only support view map like //depot/path/to/... //client/path/to/...
 //                 not support      //depot/path/to/file //client/path/to/file
+//                 not support      -//depot/path/to/... //client/path/to/file
 var p4DetailViewLineMather = regexp.MustCompile(`^\s(//.+/)\.{3}\s+(//.+/)\.{3}$`)
 
+func p4clientLineParse(p *P4Project, line string, viewMapLines *bool, output *os.File) {
+	// output for cache detail lines
+	if output != nil {
+		// XXX: we ingore write error?
+		output.WriteString(line)
+		output.WriteString("\n")
+	}
+	if strings.HasPrefix(line, "#") {
+		return
+	}
+
+	if *viewMapLines {
+		viewMap := p4DetailViewLineMather.FindStringSubmatch(line)
+		if viewMap != nil {
+			localPath := strings.TrimPrefix(viewMap[2], fmt.Sprintf("//%s/", p.P4Client))
+			if filepath.Separator == '\\' {
+				localPath = strings.ReplaceAll(localPath, "/", "\\")
+			}
+			localPath = fmt.Sprintf("%s%s", p.P4Details.Root, localPath)
+			p.P4Details.Views[viewMap[1]] = localPath
+		}
+		return
+	}
+
+	parts := p4DetailRootMather.FindStringSubmatch(line)
+	if parts != nil {
+		p.P4Details.Root = strings.TrimRight(parts[1], string(filepath.Separator)) + string(filepath.Separator)
+		return
+	}
+	parts = p4DetailOwnerMather.FindStringSubmatch(line)
+	if parts != nil {
+		p.P4Details.Owner = parts[1]
+		return
+	}
+	parts = p4DetailViewMather.FindStringSubmatch(line)
+	if parts != nil {
+		*viewMapLines = true
+		p.P4Details.Views = make(map[string]string)
+		return
+	}
+}
+
+func (p *P4Project) getDetails_cached () error {
+	targetDir := filepath.Join(p.BaseDir, ".p4", ".zoekt", "cache")
+	err := contrib.PrepareDirectory(targetDir)
+	if err != nil {
+		return err
+	}
+
+	targetPath := filepath.Join(targetDir, "remote")
+	f, err := os.Open(targetPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	viewMapLines := false
+	for scanner.Scan() {
+		p4clientLineParse(p, scanner.Text(), &viewMapLines, nil)
+	}
+	if err = scanner.Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (p *P4Project) getDetails () error {
+	err := p.getDetails_cached()
+	if err == nil {
+		return nil
+	}
+
 	cmd := fmt.Sprintf(
 		"P4PORT=%s P4USER=%s P4CLIENT=%s %s client -o",
 		p.P4Port, p.P4User, p.P4Client, P4_BIN,
 	)
 	contrib.PrintDebugCommand(cmd)
+
+	detailCacheFilename := filepath.Join(p.BaseDir, ".p4", ".zoekt", "cache", "remote")
+	f, err := os.Create(detailCacheFilename)
+	if err == nil {
+		defer f.Close()
+	} else {
+		f = nil
+	}
+
 	viewMapLines := false
-	err := contrib.Exec2Lines(cmd, func (line string) {
-		if strings.HasPrefix(line, "#") {
-			return
-		}
-
-		if viewMapLines {
-			viewMap := p4DetailViewLineMather.FindStringSubmatch(line)
-			if viewMap != nil {
-				localPath := strings.TrimPrefix(viewMap[2], fmt.Sprintf("//%s/", p.P4Client))
-				if filepath.Separator == '\\' {
-					localPath = strings.ReplaceAll(localPath, "/", "\\")
-				}
-				localPath = fmt.Sprintf("%s%s", p.P4Details.Root, localPath)
-				p.P4Details.Views[viewMap[1]] = localPath
-			}
-			return
-		}
-
-		parts := p4DetailRootMather.FindStringSubmatch(line)
-		if parts != nil {
-			p.P4Details.Root = strings.TrimRight(parts[1], string(filepath.Separator)) + string(filepath.Separator)
-			return
-		}
-		parts = p4DetailOwnerMather.FindStringSubmatch(line)
-		if parts != nil {
-			p.P4Details.Owner = parts[1]
-			return
-		}
-		parts = p4DetailViewMather.FindStringSubmatch(line)
-		if parts != nil {
-			viewMapLines = true
-			p.P4Details.Views = make(map[string]string)
-			return
-		}
+	err = contrib.Exec2Lines(cmd, func (line string) {
+		p4clientLineParse(p, line, &viewMapLines, f)
 	})
 	return err
 }
 
 func (p *P4Project) prepareP4folder () error {
 	p4folder := filepath.Join(p.BaseDir, ".p4")
-	fileinfo, err := os.Stat(p4folder)
-	if os.IsNotExist(err) {
-		os.Mkdir(p4folder, 0755)
-	} else if err != nil {
-		return err
-	} else if !fileinfo.IsDir() {
-		return fmt.Errorf(".p4 has been used as a normal file not a directory")
+	err := contrib.PrepareDirectory(p4folder)
+	if err != nil {
+		return nil
 	}
 
 	p4config := filepath.Join(p4folder, "config")

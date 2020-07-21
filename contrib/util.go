@@ -192,6 +192,18 @@ func FileLen(filepath string) (int64, error) {
 	return info.Size(), nil
 }
 
+func PrepareDirectory(dirpath string) error {
+	fileinfo, err := os.Stat(dirpath)
+	if os.IsNotExist(err) {
+		return os.MkdirAll(dirpath, 0755)
+	} else if err != nil {
+		return err
+	} else if !fileinfo.IsDir() {
+		return fmt.Errorf("%s has been used as a normal file not a directory", dirpath)
+	}
+	return nil
+}
+
 
 func Search(indexPath string, ctx context.Context, q string, num int) (*zoekt.SearchResult, error) {
 	empty, err := IsEmptyFolder(indexPath)
