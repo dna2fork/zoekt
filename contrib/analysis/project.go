@@ -8,6 +8,7 @@ import (
 	"bufio"
 	"path/filepath"
 	"strings"
+	"strconv"
 	"regexp"
 	"context"
 
@@ -934,11 +935,18 @@ func (p *GitProject) GetFileLength (path, revision string) (int64, error) {
 	}
 }
 
-var gitBlameLineMatcher = regexp.MustCompile(`^\^?([a-f0-9]+) \(<(.*@.*)>\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+\-]\d{4})\s+\d+\) +.*$`)
+var gitBlameLineMatcher = regexp.MustCompile(`^\^?([a-f0-9]+) .*\(<(.*@.*)>\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+\-]\d{4})\s+\d+\)\s+.*$`)
+//                                                ^ hash      |    |          ^ datetime                                         |       ^ linecontents
+//                                                            ^ rename                                                           ^ linenumber
+//                                                                 ^ author
+var gitBlameMaxLineMatcher = regexp.MustCompile(`fatal: file .* has only (\d+) lines`)
 
 func (p *GitProject) GetFileBlameInfo (path, revision string, startLine, endLine int) ([]*BlameDetails, error) {
 	var Lrange string
-	if endLine < 0 {
+	if startLine <= 0 {
+		startLine = 1
+	}
+	if endLine <= 0 {
 		Lrange = ""
 	} else {
 		Lrange = fmt.Sprintf("-L %d,%d", startLine, endLine)
@@ -951,7 +959,17 @@ func (p *GitProject) GetFileBlameInfo (path, revision string, startLine, endLine
 	blames := make([]*BlameDetails, 0)
 	lastCommit := ""
 	contrib.Exec2Lines(cmd, func (line string) {
-		parts := gitBlameLineMatcher.FindStringSubmatch(line)
+		parts := gitBlameMaxLineMatcher.FindStringSubmatch(line)
+		if parts != nil {
+			max, err := strconv.Atoi(parts[1])
+			if err != nil {
+				return
+			}
+			blames, err = p.GetFileBlameInfo(path, revision, startLine, max)
+			return
+		}
+
+		parts = gitBlameLineMatcher.FindStringSubmatch(line)
 		var email string
 		var commit string
 		if parts == nil {
