@@ -20,7 +20,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"sync"
+	"runtime"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -107,20 +107,39 @@ func (s *shardWatcher) scan() error {
 		}
 	}
 
+	if len(toDrop) > 0 {
+		log.Printf("unloading %d shards", len(toDrop))
+	}
 	for _, t := range toDrop {
 		log.Printf("unloading: %s", t)
 		s.loader.drop(t)
 	}
 
-	var wg sync.WaitGroup
-	for _, t := range toLoad {
-		wg.Add(1)
+	if len(toLoad) == 0 {
+		return nil
+	}
+
+	log.Printf("loading %d shards", len(toLoad))
+
+	// Limit amount of concurrent shard loads.
+	throttle := make(chan struct{}, runtime.GOMAXPROCS(0))
+	lastProgress := time.Now()
+	for i, t := range toLoad {
+		// If taking a while to start-up occasionally give a progress message
+		if time.Since(lastProgress) > 10*time.Second {
+			log.Printf("still need to load %d shards...", len(toLoad)-i)
+			lastProgress = time.Now()
+		}
+
+		throttle <- struct{}{}
 		go func(k string) {
 			s.loader.load(k)
-			wg.Done()
+			<-throttle
 		}(t)
 	}
-	wg.Wait()
+	for i := 0; i < cap(throttle); i++ {
+		throttle <- struct{}{}
+	}
 
 	return nil
 }
