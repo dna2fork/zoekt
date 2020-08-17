@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"regexp"
 	"context"
+	"time"
 
 	"github.com/google/zoekt"
 	"github.com/google/zoekt/contrib"
@@ -48,6 +49,7 @@ type IProject interface {
 type BlameDetails struct {
 	Author string					`json:"author"`
 	Commit string					`json:"commit"`
+	Timestamp int64					`json:"timestamp"`
 }
 
 var _ IProject = &P4Project{}
@@ -541,11 +543,22 @@ func (p *P4Project) GetFileBlameInfo (path, revision string, startLine, endLine 
 		p.BaseDir, P4_BIN, url,
 	)
 	contrib.PrintDebugCommand(cmd)
-	commits := make(map[string]string, 0)
+	cacheAuthor := make(map[string]string, 0)
+	cacheTimestamp := make(map[string]int64, 0)
 	contrib.Exec2Lines(cmd, func (line string) {
 		parts := p4FilelogRevMatcher.FindStringSubmatch(line)
 		if parts != nil {
-			commits[parts[2]] = parts[5]
+			cacheAuthor[parts[2]] = parts[5]
+			// XXX: set p4 server timezone +0000
+			t, timeErr := time.Parse(
+				time.RFC3339,
+				strings.Join(strings.Split(strings.Split(parts[4], " ")[0], "/"), "-") + "T00:00:00Z",
+			)
+			if timeErr != nil {
+				cacheTimestamp[parts[2]] = -1
+			} else {
+				cacheTimestamp[parts[2]] = t.Unix()
+			}
 			return
 		}
 	})
@@ -566,15 +579,19 @@ func (p *P4Project) GetFileBlameInfo (path, revision string, startLine, endLine 
 		parts := p4AnnotateMatcher.FindStringSubmatch(line)
 		if parts != nil {
 			if lineNo < startLine || lineNo > endLine {
+				lineNo ++
 				return
 			}
 			C := parts[1]
-			author, ok := commits[C]
+			author, ok := cacheAuthor[C]
+			tp, _ := cacheTimestamp[C]
 			if !ok {
 				commitDetails, err := p.getCommitSummary(C)
 				if err == nil {
 					author = commitDetails.Author
-					commits[commitDetails.Id] = commitDetails.Author
+					tp = commitDetails.Timestamp
+					cacheAuthor[commitDetails.Id] = author
+					cacheTimestamp[commitDetails.Id] = tp
 				} else {
 					author = "(unknown)"
 				}
@@ -582,10 +599,11 @@ func (p *P4Project) GetFileBlameInfo (path, revision string, startLine, endLine 
 			if lastCommit == C {
 				C = "^"
 				author = "^"
+				tp = 0
 			} else {
 				lastCommit = C
 			}
-			details := &BlameDetails{C, author}
+			details := &BlameDetails{author, C, tp}
 			blames = append(blames, details)
 			lineNo ++
 			return
@@ -972,21 +990,41 @@ func (p *GitProject) GetFileBlameInfo (path, revision string, startLine, endLine
 		parts = gitBlameLineMatcher.FindStringSubmatch(line)
 		var email string
 		var commit string
+		var tp int64
 		if parts == nil {
 			email = "(unknown)"
 			commit = "(unknown)"
+			tp = 0
 		} else {
 			email = parts[2]
 			commit = parts[1]
+			datetime_parts := strings.Split(parts[3], " ")
+			timezone_runes := []rune(datetime_parts[2])
+			t, timeErr := time.Parse(
+				time.RFC3339,
+				fmt.Sprintf(
+					"%sT%s%s:%s",
+					datetime_parts[0],
+					datetime_parts[1],
+					string(timezone_runes[0:3]),
+					string(timezone_runes[3:5]),
+				),
+			)
+			if timeErr != nil {
+				tp = -1
+			} else {
+				tp = t.Unix()
+			}
 		}
 		if commit == lastCommit {
 			// to shorten blame emails for lines
 			email = "^"
 			commit = "^"
+			tp = 0
 		} else {
 			lastCommit = commit
 		}
-		details := &BlameDetails{email, commit}
+		details := &BlameDetails{email, commit, tp}
 		blames = append(blames, details)
 	})
 	return blames, nil
