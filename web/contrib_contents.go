@@ -409,9 +409,10 @@ func (s *Server) serveScmPrint(w http.ResponseWriter, r *http.Request) {
 		}
 	case "search":
 		s.contribSearchCommitInProject(project, qvals, w, r)
-		return
 	case "link":
 		s.contribGetLinkInProject(project, qvals, w, r)
+	case "track":
+		s.contribTrack(project, qvals, w, r)
 	default:
 		utilErrorStr(w, fmt.Sprintf("'%s' not support", jsonText(action)), 400)
 	}

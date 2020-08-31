@@ -40,6 +40,22 @@ func PrintDebugCommand(cmd string) {
 	log.Println(cmd)
 }
 
+func File2Lines(filename string, fn execLinesProcessor) error {
+	f, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		fn(scanner.Text())
+	}
+	if err = scanner.Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func Exec2Lines(cmd string, fn execLinesProcessor) error {
 	return doExec(cmd, func (proc *exec.Cmd, stdout, stderr io.ReadCloser) error {
 		if err := proc.Start(); err != nil {

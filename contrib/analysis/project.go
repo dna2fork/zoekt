@@ -32,6 +32,7 @@ func init() {
 // IProject project operator interface
 type IProject interface {
 	GetBaseDir() string
+	GetMetadataDir() string
 	Sync() (map[string]string, error) // return filepath to store latest modified file list
 	Compile() error // virtually compile project; store metadata into disk: dump commit message, build ast tree ...
 	GetProjectType() string // return p4, git, ...
@@ -167,6 +168,10 @@ func NewP4Project (projectName string, baseDir string, options map[string]string
 
 func (p *P4Project) GetBaseDir () string {
 	return p.BaseDir
+}
+
+func (p *P4Project) GetMetadataDir () string {
+	return filepath.Join(p.BaseDir, ".p4")
 }
 
 var p4DetailRootMather = regexp.MustCompile(`^Root:\s+(.+)$`)
@@ -743,6 +748,10 @@ func NewGitProject (projectName string, baseDir string, options map[string]strin
 
 func (p *GitProject) GetBaseDir () string {
 	return p.BaseDir
+}
+
+func (p *GitProject) GetMetadataDir () string {
+	return filepath.Join(p.BaseDir, ".git")
 }
 
 func (p *GitProject) getCurrentBranch () (string, error) {

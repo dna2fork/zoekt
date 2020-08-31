@@ -2,6 +2,12 @@ package analysis
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"encoding/json"
+	"strings"
+	"sync"
+	"github.com/google/zoekt/contrib"
 )
 
 type DiffMap struct {
@@ -317,4 +323,270 @@ func DumpDiffRangeSet (set []*DiffRange) {
 		r.Dump()
 	}
 	fmt.Println("}")
+}
+
+const MAX_TRACKPOINT_ID = 1000000
+
+type TrackPoint struct {
+	Id     int            `json:"id"`
+	// { "rev": line }
+	Origin map[string]int `json:"o"`
+	Line   int            `json:"line"`
+}
+
+type TrackFileMeta struct {
+	NextId    int    `json:"nid"`
+	Timestamp int64  `json:"mtime"`
+	Rev       string `json:"rev"`
+}
+
+type TrackFile struct {
+	Project IProject
+	Path    string
+	Meta    TrackFileMeta
+	Points  []TrackPoint
+	mutex   *sync.Mutex
+}
+
+// metadata
+// /project/(.git|.p4)/.zoekt/track/path... ._ -> timestmp, points
+
+func NewTrackFile(p IProject, path string) *TrackFile {
+	tf := &TrackFile{p, path, TrackFileMeta{1, 0, ""}, nil, &sync.Mutex{}}
+	return tf
+}
+
+func (f *TrackFile) Load() error {
+	metaBaseDir := f.Project.GetMetadataDir()
+	track := filepath.Join(metaBaseDir, ".zoekt", "track", f.Path + "._")
+	header := true
+
+	var loadErr error
+	err := contrib.File2Lines(track, func (line string) {
+		if loadErr != nil {
+			return
+		}
+		if line == "" {
+			return
+		}
+		if strings.HasPrefix(line, "#") {
+			return
+		}
+		b := []byte(line)
+		if header {
+			header = false
+			// load basic info
+			loadErr = json.Unmarshal(b, &f.Meta)
+			if loadErr != nil {
+				return
+			}
+			return
+		}
+		if f.Points == nil {
+			f.Points = make([]TrackPoint, 0)
+		}
+		// load track points
+		tp := TrackPoint{}
+		loadErr = json.Unmarshal(b, &tp)
+		if loadErr != nil {
+			return
+		}
+		f.Points = append(f.Points, tp)
+	})
+	if loadErr == nil {
+		loadErr = err
+	}
+	return loadErr
+}
+
+func (f *TrackFile) GetById(id int) *TrackPoint {
+	if f.Points == nil { return nil }
+	for _, tp := range f.Points {
+		if tp.Id == id {
+			return &tp
+		}
+	}
+	return nil
+}
+
+func (f *TrackFile) GetByLine(line int) *TrackPoint {
+	if f.Points == nil { return nil }
+	for _, tp := range f.Points {
+		if tp.Line == line {
+			return &tp
+		}
+	}
+	return nil
+}
+
+func (f *TrackFile) Add(line int) (int, error) {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+	if f.Meta.NextId >= MAX_TRACKPOINT_ID {
+		return -1, fmt.Errorf("reach max id")
+	}
+	id := f.Meta.NextId
+	c, err := f.Project.GetFileCommitInfo(f.Path, 0, 1)
+	if err != nil {
+		return -1, fmt.Errorf("cannot get file commit")
+	}
+	if len(c) == 0 {
+		return -1, fmt.Errorf("file commit empty")
+	}
+	commit := c[0]
+	// TODO: Sync and GetByLine to check if exists?
+	cur := f.GetByLine(line)
+	if cur != nil {
+		cur.Origin[commit] = line
+		return cur.Id, nil
+	}
+	tp := TrackPoint{id, nil, line}
+	tp.Origin = make(map[string]int)
+	tp.Origin[commit] = line
+	// TODO: check line range
+	if f.Points == nil {
+		f.Points = make([]TrackPoint, 0)
+	}
+	f.Points = append(f.Points, tp)
+	f.Meta.NextId ++
+	// TODO: how to prevent data loss when crash
+	return id, nil
+}
+
+func (f *TrackFile) Del(id int) error {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+	if f.Points == nil { return nil }
+	index := -1
+	for i, tp := range f.Points {
+		if tp.Id == id {
+			index = i
+			break
+		}
+	}
+	if index < 0 { return nil }
+	r := f.Points[0:index]
+	r = append(r, f.Points[index+1:]...)
+	f.Points = r
+	return nil
+}
+
+func (f *TrackFile) Save() error {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+	metaBaseDir := f.Project.GetMetadataDir()
+	track := filepath.Join(metaBaseDir, ".zoekt", "track", f.Path + "._")
+	dirname := filepath.Dir(track)
+	contrib.PrepareDirectory(dirname)
+
+	trf, err := os.Create(track)
+	if err != nil {
+		return err
+	}
+	defer trf.Close()
+	b, err := json.Marshal(f.Meta)
+	if err != nil { return err }
+	_, err = trf.Write(b)
+	if err != nil { return err }
+	_, err = trf.WriteString("\n")
+	if err != nil { return err }
+	if f.Points != nil {
+		for _, p := range f.Points {
+			b, err = json.Marshal(p)
+			if err != nil { return err }
+			_, err = trf.Write(b)
+			if err != nil { return err }
+			_, err = trf.WriteString("\n")
+			if err != nil { return err }
+		}
+	}
+	return nil
+}
+
+func (f *TrackFile) TrackLines () error {
+	if f.Points == nil { return nil }
+	commits, err := f.Project.GetFileCommitInfo(f.Path, 0, 1)
+	if err != nil { return err }
+	if len(commits) < 1 { return fmt.Errorf("file commit empty") }
+	latest := commits[0]
+	// data is synced
+	if latest == f.Meta.Rev { return nil }
+
+	srcText, err := f.Project.GetFileTextContents(f.Path, f.Meta.Rev)
+	if err != nil { return err }
+	dstText, err := f.Project.GetFileTextContents(f.Path, latest)
+	if err != nil { return err }
+	d := &Diff{}
+	srcLines := strings.Split(srcText, "\n")
+	dstLines := strings.Split(dstText, "\n")
+	ret := d.Act(srcLines, dstLines)
+	if ret == nil { return fmt.Errorf("cannot diff") }
+	if len(ret) == 0 { return fmt.Errorf("totally different files") }
+
+	for i, tp := range f.Points {
+		// skip disconnected track point
+		if tp.Line <= 0 { continue }
+		L, Lst, Led := d.TrackLine(ret[0], srcLines, dstLines, tp.Line)
+		if Lst < 0 && Led < 0 {
+			// line disconnected
+			f.Points[i].Line = -1
+		} else {
+			f.Points[i].Line = L
+		}
+	}
+
+	f.Meta.Rev = latest
+	return nil
+}
+
+func (f *TrackFile) SyncMetadata () error {
+	commits, err := f.Project.GetFileCommitInfo(f.Path, 0, 1)
+	if err != nil { return nil }
+	if len(commits) == 0 { return fmt.Errorf("file commit empty") }
+	latest := commits[0]
+	f.Meta.Rev = latest
+	return nil
+}
+
+func (f *TrackFile) Sync() error {
+	if strings.HasSuffix(f.Path, "/") {
+		f.Path = string([]rune(f.Path)[0:len(f.Path)-1])
+	}
+	baseDir := f.Project.GetBaseDir()
+	source := filepath.Join(baseDir, f.Path)
+	metaBaseDir := f.Project.GetMetadataDir()
+	track := filepath.Join(metaBaseDir, ".zoekt", "track", f.Path + "._")
+	info, err := os.Stat(source)
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		return fmt.Errorf("not suport track directory")
+	}
+	updatedTs := info.ModTime().Unix()
+
+	dirname := filepath.Dir(track)
+	contrib.PrepareDirectory(dirname)
+	info, err = os.Stat(track)
+
+	if os.IsNotExist(err) {
+		// init track
+		f.Meta.Timestamp = 0
+		err = f.SyncMetadata()
+		if err != nil { return err }
+	} else if err == nil {
+		// load data and compare with current timestamp
+		err = f.Load()
+		if err != nil { return err }
+	} else {
+		return err
+	}
+	if updatedTs != f.Meta.Timestamp {
+		f.Meta.Timestamp = updatedTs
+		err = f.TrackLines()
+		if err != nil { return err }
+		err = f.Save()
+		if err != nil { return err }
+	}
+	return nil
 }
