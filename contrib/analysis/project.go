@@ -56,6 +56,24 @@ type BlameDetails struct {
 var _ IProject = &P4Project{}
 var _ IProject = &GitProject{}
 
+func ListProjects (baseDir string) ([]string, error) {
+	list := make([]string, 0)
+	dir, err := os.Open(baseDir)
+	if err != nil { return nil, err }
+	defer dir.Close()
+	files, err := dir.Readdir(-1)
+	if err != nil { return nil, err }
+	for _, file := range files {
+		if !file.IsDir() { continue }
+		name := file.Name()
+		if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") {
+			continue
+		}
+		list = append(list, name)
+	}
+	return list, nil
+}
+
 func NewProject (projectName string, baseDir string) IProject {
 	baseDir, err := filepath.Abs(baseDir)
 	if err != nil {

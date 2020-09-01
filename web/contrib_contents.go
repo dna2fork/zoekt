@@ -310,6 +310,11 @@ func (s *Server) serveScmPrint(w http.ResponseWriter, r *http.Request) {
 	repoStr  := qvals.Get("r")
 	revision := qvals.Get("x")
 
+	if (action == "list" && repoStr == "") {
+		s.contribListProjects(w, r)
+		return
+	}
+
 	baseDir  := fmt.Sprintf("%s/%s", s.SourceBaseDir, repoStr)
 	project  := analysis.NewProject(repoStr, baseDir)
 	if project == nil {
@@ -494,6 +499,22 @@ func (s *Server) contribRenderSearchResult(result *zoekt.SearchResult, q string,
 	}
 
 	w.Write(buf.Bytes())
+}
+
+func (s *Server) contribListProjects(w http.ResponseWriter, r *http.Request) {
+	list, err := analysis.ListProjects(s.SourceBaseDir)
+	if err != nil {
+		log.Printf("failed to get project list: %v", err)
+		utilErrorStr(w, "internal error", 500)
+		return
+	}
+	b, err := json.Marshal(list)
+	if err != nil {
+		log.Printf("failed to parse project list data: %v", err)
+		utilErrorStr(w, "internal error", 500)
+		return
+	}
+	w.Write(b)
 }
 
 func (s *Server) contribGetLinkInProject(p analysis.IProject, keyval url.Values, w http.ResponseWriter, r *http.Request) {
