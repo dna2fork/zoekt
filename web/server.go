@@ -127,6 +127,7 @@ type Server struct {
 	lastStatsTS time.Time
 
 	SourceBaseDir string
+	IndexDir string
 	BasicAuth ServerAuthBasic
 }
 

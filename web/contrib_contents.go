@@ -15,6 +15,7 @@ import (
 	"strconv"
 
 	"github.com/google/zoekt"
+	"github.com/google/zoekt/contrib"
 	"github.com/google/zoekt/contrib/analysis"
 )
 
@@ -409,6 +410,8 @@ func (s *Server) serveScmPrint(w http.ResponseWriter, r *http.Request) {
 		}
 	case "search":
 		s.contribSearchCommitInProject(project, qvals, w, r)
+	case "reindex":
+		s.contribReindexProject(project, qvals, w, r)
 	case "link":
 		s.contribGetLinkInProject(project, qvals, w, r)
 	case "track":
@@ -506,6 +509,18 @@ func (s *Server) contribGetLinkInProject(p analysis.IProject, keyval url.Values,
 	default:
 		utilErrorStr(w, "not supported", 403)
 	}
+}
+
+var INDEX_INGORE_DIRS = []string{".git", ".p4", ".hg", ".zoekt"}
+func (s *Server) contribReindexProject(p analysis.IProject, keyval url.Values, w http.ResponseWriter, r *http.Request) {
+	sourceDir := p.GetBaseDir()
+	projectName := filepath.Base(sourceDir)
+	err := contrib.Index(s.IndexDir, sourceDir, INDEX_INGORE_DIRS)
+	if err != nil {
+		log.Printf("failed to index [%s]: %v", projectName, err)
+		utilErrorStr(w, "internal error", 500)
+	}
+	w.Write([]byte(`{"ok":1}`))
 }
 
 func utilError(w http.ResponseWriter, err error, returnCode int) {

@@ -1092,7 +1092,7 @@ func (p *GitProject) GetDirContents (path, revision string) ([]string, error) {
 		if err == nil {
 			// XXX: fix for windows? line.replaceAll("\\", "/")
 			if info.IsDir() {
-                        	line = line + "/"
+				line = line + "/"
 				list = append(list, strings.TrimPrefix(line, prefix))
 				return
 			}
@@ -1118,4 +1118,3 @@ func doWalk (baseDir string, ignoredDir string, updatedList *map[string]string) 
 		return nil
 	})
 }
-

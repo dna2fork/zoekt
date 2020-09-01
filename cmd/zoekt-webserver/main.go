@@ -161,6 +161,7 @@ func main() {
 		Searcher: searcher,
 		Top:      web.Top,
 		Version:  zoekt.Version,
+		IndexDir: *index,
 	}
 
 	if *templateDir != "" {
