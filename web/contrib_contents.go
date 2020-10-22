@@ -317,7 +317,16 @@ func (s *Server) serveScmPrint(w http.ResponseWriter, r *http.Request) {
 
 	baseDir  := fmt.Sprintf("%s/%s", s.SourceBaseDir, repoStr)
 	project  := analysis.NewProject(repoStr, baseDir)
-	if project == nil {
+	noProject := false
+	switch v := project.(type) {
+	case *analysis.P4Project:
+		if v == nil { noProject = true }
+	case *analysis.GitProject:
+		if v == nil { noProject = true }
+	default:
+		noProject = true
+	}
+	if noProject {
 		utilErrorStr(w, fmt.Sprintf("'%s' not supported nor found", repoStr), 400)
 		return
 	}
