@@ -10,20 +10,23 @@ import (
 )
 
 type CTagsItem struct {
-	Type string     `json:"_type"`
-	Name string     `json:"name"`
-	Path string     `json:"path"`
+	Type string      `json:"_type"`
+	Name string      `json:"name"`
+	Path string      `json:"path"`
 	// format: /^...$/
-	Pattern string  `json:"pattern"`
-	Language string `json:"language"`
-	Line uint       `json:"line"`
-	Kind string     `json:"kind"`
+	Pattern string   `json:"pattern"`
+	Language string  `json:"language"`
+	Line uint        `json:"line"`
+	Kind string      `json:"kind"`
+	Scope string     `json:"scope"`
+	ScopeKind string `json:"scopeKind"`
 }
 type SymbolItem struct {
-	Type string `json:"type"`
-	Name string `json:"name"`
-	Line uint   `json:"line"`
-	Kind string `json:"kind"`
+	Type string  `json:"type"`
+	Name string  `json:"name"`
+	Line uint    `json:"line"`
+	Kind string  `json:"kind"`
+	Scope string `json:"scope"`
 }
 type SymbolSet struct {
 	Language string       `json:"language"`
@@ -84,7 +87,7 @@ func runCtags(filename string, output chan<- *SymbolSet) error {
 			err := json.Unmarshal([]byte(m), &item)
 			if err != nil { continue }
 			if set.Language == "" { set.Language = item.Language }
-			set.Symbols = append(set.Symbols, SymbolItem{item.Type, item.Name, item.Line, item.Kind})
+			set.Symbols = append(set.Symbols, SymbolItem{item.Type, item.Name, item.Line, item.Kind, item.Scope})
 		}
 		output <- &set
 		done <- nil
