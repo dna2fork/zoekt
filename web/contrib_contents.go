@@ -421,9 +421,38 @@ func (s *Server) serveScmPrint(w http.ResponseWriter, r *http.Request) {
 		s.contribGetLinkInProject(project, qvals, w, r)
 	case "track":
 		s.contribTrack(project, qvals, w, r)
+	case "symbol":
+		s.contribSymbol(project, qvals, w, r)
 	default:
 		utilErrorStr(w, fmt.Sprintf("'%s' not support", jsonText(action)), 400)
 	}
+}
+
+func (s *Server) contribSymbol(p analysis.IProject, keyval url.Values, w http.ResponseWriter, r *http.Request) {
+	f := keyval.Get("f")
+	if f == "" {
+		utilErrorStr(w, "empty query", 400)
+		return
+	}
+	if strings.Contains(f, "/../") {
+		utilErrorStr(w, "empty query", 400)
+		return
+	}
+	if strings.HasPrefix(f, "../") {
+		utilErrorStr(w, "empty query", 400)
+		return
+	}
+	set, err := analysis.GetCtagsSymbols(p, f)
+	if err != nil {
+		utilError(w, err, 500)
+		return
+	}
+	j, err := json.Marshal(set)
+	if err != nil {
+		utilError(w, err, 500)
+		return
+	}
+	w.Write(j)
 }
 
 func sendScmFileContents(w http.ResponseWriter, buf []byte) {
