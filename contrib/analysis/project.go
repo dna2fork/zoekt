@@ -31,6 +31,7 @@ func init() {
 
 // IProject project operator interface
 type IProject interface {
+	GetName() string
 	GetBaseDir() string
 	GetMetadataDir() string
 	Sync() (map[string]string, error) // return filepath to store latest modified file list
@@ -43,8 +44,14 @@ type IProject interface {
 	GetFileBlameInfo(path, revision string, startLine, endLine int) ([]*BlameDetails, error)
 	GetFileCommitInfo(path string, offset, N int) ([]string, error) // N = -1 for dumping all
 	GetDirContents(path, revision string) ([]string, error)
+
+	// commit
 	GetCommitDetails(commitId string) (*CommitDetails, error)
 	SearchCommits(ctx context.Context, query string, num int) (*zoekt.SearchResult, error)
+
+	// report_occurrence
+	GetOccurrenceReport(name string) (*OccurrenceReport, error)
+	GenOccurrenceReport(name string, items []string) error
 }
 
 type BlameDetails struct {
@@ -182,6 +189,10 @@ func NewP4Project (projectName string, baseDir string, options map[string]string
 	p := &P4Project{projectName, baseDir, port, user, client, p4Details{}};
 	p.getDetails()
 	return p
+}
+
+func (p *P4Project) GetName () string {
+	return p.Name
 }
 
 func (p *P4Project) GetBaseDir () string {
@@ -762,6 +773,10 @@ func NewGitProject (projectName string, baseDir string, options map[string]strin
 		log.Printf("P/%s: [W] missing Branch; using default\n", projectName)
 	}
 	return p
+}
+
+func (p *GitProject) GetName () string {
+	return p.Name
 }
 
 func (p *GitProject) GetBaseDir () string {
