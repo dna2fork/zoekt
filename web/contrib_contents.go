@@ -587,8 +587,17 @@ func (s *Server) contribReindexProject(p analysis.IProject, keyval url.Values, w
 var occurrenceReportStatus map[string]map[string]int = make(map[string]map[string]int)
 func (s *Server) contribOccurrenceReport(p analysis.IProject, keyval url.Values, w http.ResponseWriter, r *http.Request) {
 	f := keyval.Get("f")
+	projectName := p.GetName()
 	if r.Method == "GET" {
 		report, err := p.GetOccurrenceReport(f)
+		if report == nil {
+			report = &analysis.OccurrenceReport{}
+			report.GenTime = 0
+		}
+		// if in progress, set flag in report.Status
+		_, ok := occurrenceReportStatus[projectName]
+		if ok { _, ok = occurrenceReportStatus[projectName][f] }
+		if ok { report.Status, _ = occurrenceReportStatus[projectName][f] }
 		b, err := json.Marshal(report)
 		if err != nil {
 			utilErrorStr(w, "internal error", 500)
@@ -603,7 +612,6 @@ func (s *Server) contribOccurrenceReport(p analysis.IProject, keyval url.Values,
 			utilErrorStr(w, "bad request", 400)
 			return
 		}
-		projectName := p.GetName()
 		if _, ok := occurrenceReportStatus[projectName]; !ok {
 			occurrenceReportStatus[projectName] = make(map[string]int)
 		}
