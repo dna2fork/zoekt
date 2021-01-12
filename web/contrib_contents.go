@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"strconv"
+	"sync"
 
 	"github.com/google/zoekt"
 	"github.com/google/zoekt/contrib"
@@ -584,6 +585,16 @@ func (s *Server) contribReindexProject(p analysis.IProject, keyval url.Values, w
 	w.Write([]byte(`{"ok":1}`))
 }
 
+type genReportCtrl struct {
+	m sync.Mutex
+}
+func (g *genReportCtrl) GenOccurrenceReport(p analysis.IProject, api string, items []string) {
+	g.m.Lock()
+	defer g.m.Unlock()
+	p.GenOccurrenceReport(api, items)
+}
+var occurrenceReportCtrl genReportCtrl
+
 var occurrenceReportStatus map[string]map[string]int = make(map[string]map[string]int)
 func (s *Server) contribOccurrenceReport(p analysis.IProject, keyval url.Values, w http.ResponseWriter, r *http.Request) {
 	f := keyval.Get("f")
@@ -622,7 +633,7 @@ func (s *Server) contribOccurrenceReport(p analysis.IProject, keyval url.Values,
 		}
 		occurrenceReportStatus[projectName][f] = 1
 		go func () {
-			p.GenOccurrenceReport(f, items)
+			occurrenceReportCtrl.GenOccurrenceReport(p, f, items)
 			// TODO garbage collect, remove key if value = 0
 			occurrenceReportStatus[projectName][f] = 0
 		}()
