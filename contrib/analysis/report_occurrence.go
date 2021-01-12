@@ -68,7 +68,7 @@ func getScopeGroupName(scope string) string {
 	return parts[n - 1]
 }
 
-var stops = regexp.MustCompile("[~!@#$%^&*()_+\\-={}|:\"<>?\\[\\]\\\\;',./ \\t\\r\\n\\`]+")
+var stops = regexp.MustCompile("[~!@#$%^&*()+\\-={}|:\"<>?\\[\\]\\\\;',./ \\t\\r\\n\\`]+")
 
 func processOneFileOccurrence(path, baseDir string, groupMap map[string]*OccurrenceGroup) error {
 	if yes, _ := contrib.IsBinaryFile(path); yes {
