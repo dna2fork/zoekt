@@ -10,16 +10,11 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 	"context"
-	"time"
 	"fmt"
 	"log"
 	"path/filepath"
-	"io/ioutil"
 
 	"github.com/google/zoekt"
-	"github.com/google/zoekt/query"
-	"github.com/google/zoekt/shards"
-	"github.com/google/zoekt/build"
 	"go.uber.org/automaxprocs/maxprocs"
 )
 
@@ -230,78 +225,12 @@ func Search(indexPath string, ctx context.Context, q string, num int) (*zoekt.Se
 		return nil, fmt.Errorf("invalid index path")
 	}
 	PrintDebugCommand(fmt.Sprintf("search in '%s'", indexPath))
-	searcher, err := shards.NewDirectorySearcher(indexPath)
-	if err != nil {
-		return nil, err
-	}
-	defer searcher.Close()
-	Q, err := query.Parse(q)
-	sOpts := zoekt.SearchOptions{
-		MaxWallTime: 10 * time.Second,
-	}
-	sOpts.SetDefaults()
-	// limit doc number in case there are too many
-	// ref: web/server.go
-	if plan, err := searcher.Search(ctx, Q, &zoekt.SearchOptions{EstimateDocCount: true}); err != nil {
-		return nil, err
-	} else if numdocs := plan.ShardFilesConsidered; numdocs > 10000 {
-		// 10k docs, top 50 -> max match/important = 275/4
-		sOpts.ShardMaxMatchCount = num*5 + (5*num)/(numdocs/1000)
-		sOpts.ShardMaxImportantMatch = num/20 + num/(numdocs/500)
-	} else {
-		n := numdocs + num*100
-		sOpts.ShardMaxImportantMatch = n
-		sOpts.ShardMaxMatchCount = n
-		sOpts.TotalMaxMatchCount = n
-	}
-	sOpts.MaxDocDisplayCount = num
-	// ref: api.go
-	// sres.Files -> f.LineMatches
-	// f.Language, f.Branches, string(f.Checksum), f.Filename, f.Repository
-	// f.Version
-	// m.LineNumber, m.Line, m.LineFragments -> x
-	// x.LineOffset, x.MatchLength
-	sres, err :=  searcher.Search(ctx, Q, &sOpts)
-	if err != nil {
-		return nil, err
-	}
-	return sres, nil
-}
-
-// ref: cmd/zoekt-index/main.go
-
-type fileInfo struct {
-	name string
-	size int64
-}
-
-type fileAggregator struct {
-	ignoreDirs map[string]struct{}
-	sizeMax    int64
-	sink       chan fileInfo
-}
-
-func (a *fileAggregator) add(path string, info os.FileInfo, err error) error {
-	if err != nil {
-		return err
-	}
-
-	if info.IsDir() {
-		base := filepath.Base(path)
-		if _, ok := a.ignoreDirs[base]; ok {
-			return filepath.SkipDir
-		}
-	}
-
-	if info.Mode().IsRegular() {
-		a.sink <- fileInfo{path, info.Size()}
-	}
-	return nil
+	// TODO: search process
+	return nil, nil
 }
 
 func Index(indexPath, sourcePath string, ignoreDirs []string) error {
 	maxprocs.Set()
-	opts := build.Options{}
 	ignoreDirMap := map[string]struct{}{}
 	for _, d := range ignoreDirs {
 		d = strings.TrimSpace(d)
@@ -309,7 +238,6 @@ func Index(indexPath, sourcePath string, ignoreDirs []string) error {
 			ignoreDirMap[d] = struct{}{}
 		}
 	}
-	opts.SetDefaults()
 	sourcePath, err := filepath.Abs(filepath.Clean(sourcePath))
 	if err != nil {
 		return err
@@ -321,45 +249,10 @@ func Index(indexPath, sourcePath string, ignoreDirs []string) error {
 	if is {
 		return fmt.Errorf("no file for indexing")
 	}
-	opts.IndexDir = indexPath
-	opts.RepositoryDescription.Source = sourcePath
-	opts.RepositoryDescription.Name = filepath.Base(sourcePath)
-	builder, err := build.NewBuilder(opts)
-	if err != nil {
-		return err
-	}
-	defer builder.Finish()
-	comm := make(chan fileInfo, 100)
-	agg := fileAggregator{
-		ignoreDirs: ignoreDirMap,
-		sink:       comm,
-		sizeMax:    int64(opts.SizeMax),
-	}
 
-	go func() {
-		if err := filepath.Walk(sourcePath, agg.add); err != nil {
-			log.Fatal(err)
-		}
-		close(comm)
-	}()
+	// TODO: index process
+	// go func() {
+	// }()
 
-	pathPrefix := sourcePath + string(filepath.Separator)
-	for f := range comm {
-		displayName := strings.TrimPrefix(f.name, pathPrefix)
-		if f.size > int64(opts.SizeMax) && !opts.IgnoreSizeMax(displayName) {
-			builder.Add(zoekt.Document{
-				Name:       displayName,
-				SkipReason: fmt.Sprintf("document size %d larger than limit %d", f.size, opts.SizeMax),
-			})
-			continue
-		}
-		content, err := ioutil.ReadFile(f.name)
-		if err != nil {
-			return err
-		}
-
-		builder.AddFile(displayName, content)
-	}
-
-	return builder.Finish()
+	return nil
 }

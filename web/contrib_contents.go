@@ -20,39 +20,6 @@ import (
 	"github.com/google/zoekt/contrib/analysis"
 )
 
-func escapeQuery(queryStr string) string {
-	// ( <-> \(; ) <-> \); \) -> ); [ <-> \[; ] <-> \]
-	trQueryStr := regexStringEscape(queryStr, "(")
-	trQueryStr = regexStringEscape(trQueryStr, ")")
-	trQueryStr = regexStringEscape(trQueryStr, "[")
-	trQueryStr = regexStringEscape(trQueryStr, "]")
-	return trQueryStr
-}
-
-func regexStringEscape(origin string, ch string) string {
-	// used in 
-	parts := strings.Split(origin, ch)
-	N := len(parts) - 1
-	for i := 0; i < N; i ++ {
-		part := parts[i]
-		L := len(part)
-		C := 0
-		for j := L-1; j >= 0; j-- {
-			if part[j] != '\\' {
-				break
-			}
-			C ++
-		}
-		if C % 2 == 0 {
-			parts[i] = fmt.Sprintf("%s\\%s", parts[i], ch)
-		} else {
-			runes := []rune(part)
-			parts[i] = fmt.Sprintf("%s%s", string(runes[0:L-1]), ch)
-		}
-	}
-	return strings.Join(parts, "")
-}
-
 func jsonText (json string) string {
 	json = strings.Replace(json, "\\", "\\\\", -1)
 	json = strings.Replace(json, "\n", "\\n", -1)
@@ -510,36 +477,7 @@ func (s *Server) contribSearchCommitInProject(p analysis.IProject, keyval url.Va
 }
 
 func (s *Server) contribRenderSearchResult(result *zoekt.SearchResult, q string, num int, w http.ResponseWriter, r *http.Request) {
-	fileMatches, err := s.formatResults(result, q, s.Print)
-	if err != nil {
-		utilError(w, err, 500)
-		return
-	}
-
-	res := ResultInput{
-		Last: LastInput{
-			Query:     q,
-			Num:       num,
-			AutoFocus: true,
-		},
-		Stats:         result.Stats,
-		Query:         q,
-		QueryStr:      q,
-		SearchOptions: "",
-		FileMatches:   fileMatches,
-	}
-	if res.Stats.Wait < res.Stats.Duration/10 {
-		// Suppress queueing stats if they are neglible.
-		res.Stats.Wait = 0
-	}
-
-	var buf bytes.Buffer
-	if err := s.result.Execute(&buf, &res); err != nil {
-		utilError(w, err, 500)
-		return
-	}
-
-	w.Write(buf.Bytes())
+	w.Write([]byte(`{"error":"not implemented yet"}`))
 }
 
 func (s *Server) contribListProjects(w http.ResponseWriter, r *http.Request) {

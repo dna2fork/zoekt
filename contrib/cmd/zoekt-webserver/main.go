@@ -19,8 +19,6 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"html/template"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/pprof"
@@ -29,9 +27,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/zoekt"
-	"github.com/google/zoekt/build"
-	"github.com/google/zoekt/shards"
 	"github.com/google/zoekt/web"
 	"github.com/google/zoekt/contrib"
 	"github.com/google/zoekt/contrib/analysis"
@@ -65,52 +60,18 @@ func divertLogs(dir string, interval time.Duration) {
 	}
 }
 
-const templateExtension = ".html.tpl"
-
-func loadTemplates(tpl *template.Template, dir string) error {
-	fs, err := filepath.Glob(dir + "/*" + templateExtension)
-	if err != nil {
-		log.Fatalf("Glob: %v", err)
-	}
-
-	log.Printf("loading templates: %v", fs)
-	for _, fn := range fs {
-		content, err := ioutil.ReadFile(fn)
-		if err != nil {
-			return err
-		}
-
-		base := filepath.Base(fn)
-		base = strings.TrimSuffix(base, templateExtension)
-		if _, err := tpl.New(base).Parse(string(content)); err != nil {
-			return fmt.Errorf("template.Parse(%s): %v", fn, err)
-		}
-	}
-	return nil
-}
-
-func writeTemplates(dir string) error {
-	if dir == "" {
-		return fmt.Errorf("must set --template_dir")
-	}
-
-	for k, v := range web.TemplateText {
-		nm := filepath.Join(dir, k+templateExtension)
-		if err := ioutil.WriteFile(nm, []byte(v), 0644); err != nil {
-			return err
-		}
-	}
-	return nil
-}
+const (
+	indexDefaultDir = ""
+	Version = "pre-kill-zoekt"
+)
 
 func main() {
 	logDir := flag.String("log_dir", "", "log to this directory rather than stderr.")
 	logRefresh := flag.Duration("log_refresh", 24*time.Hour, "if using --log_dir, start writing a new file this often.")
 
 	listen := flag.String("listen", ":6070", "listen on this address.")
-	index := flag.String("index", build.DefaultDir, "set index directory to use")
+	index := flag.String("index", indexDefaultDir, "set index directory to use")
 	html := flag.Bool("html", true, "enable HTML interface")
-	print := flag.Bool("print", false, "enable local result URLs")
 	fsbase := flag.String("fs_base_dir", "", "enable api to fetch file/directory contents (filepath)")
 	basicauth := flag.String("basic_auth", "", "enable basic auth in api invocation (filepath)")
 	enablePprof := flag.Bool("pprof", false, "set to enable remote profiling.")
@@ -119,9 +80,6 @@ func main() {
 	hostCustomization := flag.String(
 		"host_customization", "",
 		"specify host customization, as HOST1=QUERY,HOST2=QUERY")
-
-	templateDir := flag.String("template_dir", "", "set directory from which to load custom .html.tpl template files")
-	dumpTemplates := flag.Bool("dump_templates", false, "dump templates into --template_dir and exit.")
 	version := flag.Bool("version", false, "Print version number")
 	flag.Parse()
 
@@ -151,14 +109,7 @@ func main() {
 	}
 
 	if *version {
-		fmt.Printf("zoekt-webserver version %q\n", zoekt.Version)
-		os.Exit(0)
-	}
-
-	if *dumpTemplates {
-		if err := writeTemplates(*templateDir); err != nil {
-			log.Fatal(err)
-		}
+		fmt.Printf("zoekt-webserver version %q\n", Version)
 		os.Exit(0)
 	}
 
@@ -179,26 +130,14 @@ func main() {
 		log.Fatal(err)
 	}
 
-	searcher, err := shards.NewDirectorySearcher(*index)
-	if err != nil {
-		log.Fatal(err)
-		// TODO: use another index system
-	}
+	// TODO: init index searcher (*index -> path)
 
 	s := &web.Server{
-		Searcher: searcher,
-		Top:      web.Top,
-		Version:  zoekt.Version,
+		// Searcher: searcher,
+		Version:  Version,
 		IndexDir: *index,
 	}
 
-	if *templateDir != "" {
-		if err := loadTemplates(s.Top, *templateDir); err != nil {
-			log.Fatalf("loadTemplates: %v", err)
-		}
-	}
-
-	s.Print = *print
 	s.SourceBaseDir = *fsbase
 	s.HTML = *html
 	s.BasicAuth.FileName = *basicauth
