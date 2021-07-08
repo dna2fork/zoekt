@@ -1,3 +1,3 @@
-package zoekt
+package contrib
 
 type SearchResult = int

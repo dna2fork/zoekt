@@ -26,7 +26,7 @@ import (
 
 	"golang.org/x/net/context"
 
-	"github.com/google/zoekt/contrib/keyval"
+	"github.com/google/zoekt/keyval"
 )
 
 const defaultNumResults = 50

@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/google/zoekt/contrib"
-	"github.com/google/zoekt/contrib/keyval"
+	"github.com/google/zoekt/keyval"
 )
 
 func (s *Server) serveKeyval(w http.ResponseWriter, r *http.Request) {

@@ -13,7 +13,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/zoekt"
 	"github.com/google/zoekt/contrib"
 )
 
@@ -47,7 +46,7 @@ type IProject interface {
 
 	// commit
 	GetCommitDetails(commitId string) (*CommitDetails, error)
-	SearchCommits(ctx context.Context, query string, num int) (*zoekt.SearchResult, error)
+	SearchCommits(ctx context.Context, query string, num int) (*contrib.SearchResult, error)
 
 	// report_occurrence
 	GetOccurrenceReport(name string) (*OccurrenceReport, error)

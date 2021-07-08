@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/zoekt/contrib/analysis"
+	"github.com/google/zoekt/analysis"
 )
 
 func (s *Server) contribTrack(p analysis.IProject, keyval url.Values, w http.ResponseWriter, r *http.Request) {

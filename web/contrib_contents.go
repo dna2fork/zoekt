@@ -15,9 +15,8 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/google/zoekt"
 	"github.com/google/zoekt/contrib"
-	"github.com/google/zoekt/contrib/analysis"
+	"github.com/google/zoekt/analysis"
 )
 
 func jsonText (json string) string {
@@ -476,7 +475,7 @@ func (s *Server) contribSearchCommitInProject(p analysis.IProject, keyval url.Va
 	s.contribRenderSearchResult(result, q, num, w, r)
 }
 
-func (s *Server) contribRenderSearchResult(result *zoekt.SearchResult, q string, num int, w http.ResponseWriter, r *http.Request) {
+func (s *Server) contribRenderSearchResult(result *contrib.SearchResult, q string, num int, w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"error":"not implemented yet"}`))
 }
 

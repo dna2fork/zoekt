@@ -29,7 +29,7 @@ import (
 
 	"github.com/google/zoekt/web"
 	"github.com/google/zoekt/contrib"
-	"github.com/google/zoekt/contrib/analysis"
+	"github.com/google/zoekt/analysis"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/automaxprocs/maxprocs"
 	"golang.org/x/net/trace"

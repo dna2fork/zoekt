@@ -14,7 +14,6 @@ import (
 	"log"
 	"path/filepath"
 
-	"github.com/google/zoekt"
 	"go.uber.org/automaxprocs/maxprocs"
 )
 
@@ -216,7 +215,7 @@ func PrepareDirectory(dirpath string) error {
 }
 
 
-func Search(indexPath string, ctx context.Context, q string, num int) (*zoekt.SearchResult, error) {
+func Search(indexPath string, ctx context.Context, q string, num int) (*SearchResult, error) {
 	empty, err := IsEmptyFolder(indexPath)
 	if err != nil {
 		return nil, err

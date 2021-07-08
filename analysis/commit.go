@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"context"
 
-	"github.com/google/zoekt"
 	"github.com/google/zoekt/contrib"
 )
 
@@ -281,12 +280,12 @@ func (p *GitProject) GetCommitDetails (commitId string) (*CommitDetails, error) 
 // define folder structure; /path/to/repo/.<type>/.zoekt/index
 // TODO: add "r:commit"
 
-func (p *P4Project) SearchCommits(ctx context.Context, query string, num int) (*zoekt.SearchResult, error) {
+func (p *P4Project) SearchCommits(ctx context.Context, query string, num int) (*contrib.SearchResult, error) {
 	path := filepath.Join(p.BaseDir, ".p4", ".zoekt", "index")
 	return contrib.Search(path, ctx, query, num)
 }
 
-func (p *GitProject) SearchCommits(ctx context.Context, query string, num int) (*zoekt.SearchResult, error) {
+func (p *GitProject) SearchCommits(ctx context.Context, query string, num int) (*contrib.SearchResult, error) {
 	path := filepath.Join(p.BaseDir, ".git", ".zoekt", "index")
 	return contrib.Search(path, ctx, query, num)
 }
