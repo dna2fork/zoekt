@@ -13,7 +13,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"strconv"
-	"sync"
 
 	"github.com/google/zoekt/contrib"
 	"github.com/google/zoekt/analysis"
@@ -399,8 +398,6 @@ func (s *Server) serveScmPrint(w http.ResponseWriter, r *http.Request) {
 		s.contribTrack(project, qvals, w, r)
 	case "symbol":
 		s.contribSymbol(project, qvals, w, r)
-	case "report_occurrence":
-		s.contribOccurrenceReport(project, qvals, w, r)
 	default:
 		utilErrorStr(w, fmt.Sprintf("'%s' not support", jsonText(action)), 400)
 	}
@@ -520,65 +517,6 @@ func (s *Server) contribReindexProject(p analysis.IProject, keyval url.Values, w
 		utilErrorStr(w, "internal error", 500)
 	}
 	w.Write([]byte(`{"ok":1}`))
-}
-
-type genReportCtrl struct {
-	m sync.Mutex
-}
-func (g *genReportCtrl) GenOccurrenceReport(p analysis.IProject, api string, items []string) {
-	g.m.Lock()
-	defer g.m.Unlock()
-	p.GenOccurrenceReport(api, items)
-}
-var occurrenceReportCtrl genReportCtrl
-
-var occurrenceReportStatus map[string]map[string]int = make(map[string]map[string]int)
-func (s *Server) contribOccurrenceReport(p analysis.IProject, keyval url.Values, w http.ResponseWriter, r *http.Request) {
-	f := keyval.Get("f")
-	projectName := p.GetName()
-	if r.Method == "GET" {
-		report, err := p.GetOccurrenceReport(f)
-		if report == nil {
-			report = &analysis.OccurrenceReport{}
-			report.GenTime = 0
-		}
-		// if in progress, set flag in report.Status
-		_, ok := occurrenceReportStatus[projectName]
-		if ok { _, ok = occurrenceReportStatus[projectName][f] }
-		if ok { report.Status, _ = occurrenceReportStatus[projectName][f] }
-		b, err := json.Marshal(report)
-		if err != nil {
-			utilErrorStr(w, "internal error", 500)
-			return
-		}
-		w.Write(b)
-	} else if r.Method == "POST" {
-		items := make([]string, 0)
-		decoder := json.NewDecoder(r.Body)
-		err := decoder.Decode(&items)
-		if err != nil {
-			utilErrorStr(w, "bad request", 400)
-			return
-		}
-		if _, ok := occurrenceReportStatus[projectName]; !ok {
-			occurrenceReportStatus[projectName] = make(map[string]int)
-		}
-		i, ok := occurrenceReportStatus[projectName][f]
-		if ok && i != 0 {
-			w.Write([]byte(`{"ok":1,"processing":true}`))
-			return
-		}
-		occurrenceReportStatus[projectName][f] = 1
-		go func () {
-			occurrenceReportCtrl.GenOccurrenceReport(p, f, items)
-			// TODO garbage collect, remove key if value = 0
-			occurrenceReportStatus[projectName][f] = 0
-		}()
-		w.Write([]byte(`{"ok":1}`))
-	} else {
-		// TODO: support CORS option
-		utilErrorStr(w, "method forbidden", 403)
-	}
 }
 
 func utilError(w http.ResponseWriter, err error, returnCode int) {

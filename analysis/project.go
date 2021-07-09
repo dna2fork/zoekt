@@ -47,10 +47,6 @@ type IProject interface {
 	// commit
 	GetCommitDetails(commitId string) (*CommitDetails, error)
 	SearchCommits(ctx context.Context, query string, num int) (*contrib.SearchResult, error)
-
-	// report_occurrence
-	GetOccurrenceReport(name string) (*OccurrenceReport, error)
-	GenOccurrenceReport(name string, items []string) error
 }
 
 type BlameDetails struct {
