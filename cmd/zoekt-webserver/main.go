@@ -61,7 +61,6 @@ func divertLogs(dir string, interval time.Duration) {
 }
 
 const (
-	indexDefaultDir = ""
 	Version = "pre-kill-zoekt"
 )
 
@@ -69,8 +68,7 @@ func main() {
 	logDir := flag.String("log_dir", "", "log to this directory rather than stderr.")
 	logRefresh := flag.Duration("log_refresh", 24*time.Hour, "if using --log_dir, start writing a new file this often.")
 
-	listen := flag.String("listen", ":6070", "listen on this address.")
-	index := flag.String("index", indexDefaultDir, "set index directory to use")
+	listen := flag.String("listen", ":20220", "listen on this address.")
 	html := flag.Bool("html", true, "enable HTML interface")
 	fsbase := flag.String("fs_base_dir", "", "enable api to fetch file/directory contents (filepath)")
 	basicauth := flag.String("basic_auth", "", "enable basic auth in api invocation (filepath)")
@@ -89,8 +87,8 @@ func main() {
 	if *fsbase == "" {
 		fmt.Println("[!] No source root (--fs_base_dir)")
 	}
-	if *index == "" {
-		fmt.Println("[!] No zoekt index root (--index)")
+	if analysis.CYGWIN_ON {
+		fmt.Println("[!] use git/p4 in CygWin, CygWin base directory:", analysis.CYGWIN_BASE_DIR)
 	}
 	if analysis.P4_BIN == "" {
 		fmt.Println("[!] No perforce support (ZOETK_P4_BIN)")
@@ -126,16 +124,12 @@ func main() {
 	// Tune GOMAXPROCS to match Linux container CPU quota.
 	maxprocs.Set()
 
-	if err := os.MkdirAll(*index, 0755); err != nil {
-		log.Fatal(err)
-	}
-
 	// TODO: init index searcher (*index -> path)
 
 	s := &web.Server{
 		// Searcher: searcher,
 		Version:  Version,
-		IndexDir: *index,
+		// IndexDir: *index,
 	}
 
 	s.SourceBaseDir = *fsbase

@@ -20,12 +20,16 @@ var (
 	P4_BIN string
 	GIT_BIN string
 	CTAGS_BIN string
+	CYGWIN_BASE_DIR string
+	CYGWIN_ON bool
 )
 
 func init() {
 	P4_BIN = os.Getenv("ZOEKT_P4_BIN")
 	GIT_BIN = os.Getenv("ZOEKT_GIT_BIN")
 	CTAGS_BIN = os.Getenv("ZOEKT_CTAGS_BIN")
+	CYGWIN_BASE_DIR = os.Getenv("ZOEKT_CYGWIN_BASE_DIR")
+	CYGWIN_ON = CYGWIN_BASE_DIR != ""
 }
 
 // IProject project operator interface
@@ -76,6 +80,19 @@ func ListProjects (baseDir string) ([]string, error) {
 	return list, nil
 }
 
+func cygwinPath (baseDir, cygwinBaseDir string) string {
+	cygwinBaseDir, err := filepath.Abs(cygwinBaseDir)
+	if err != nil {
+		return baseDir
+	}
+	if strings.HasPrefix(baseDir, cygwinBaseDir) {
+		rcbd := []rune(cygwinBaseDir)
+		rbd := []rune(baseDir)
+		return strings.Replace(string(rbd[len(rcbd):]), string(filepath.Separator), "/", -1)
+	}
+	return baseDir
+}
+
 func NewProject (projectName string, baseDir string) IProject {
 	baseDir, err := filepath.Abs(baseDir)
 	if err != nil {
@@ -115,6 +132,9 @@ func NewProject (projectName string, baseDir string) IProject {
 var gitRemoteMatcher = regexp.MustCompile(`^origin\s+(.*)\s+\([a-z]+\)$`)
 
 func getGitProjectOptions(baseDir string, options *map[string]string) {
+	if CYGWIN_ON {
+		baseDir = cygwinPath(baseDir, CYGWIN_BASE_DIR)
+	}
 	cmd := fmt.Sprintf("%s -C %s remote -v", GIT_BIN, baseDir)
 	contrib.Exec2Lines(cmd, func (line string) {
 		parts := gitRemoteMatcher.FindStringSubmatch(line)
@@ -778,12 +798,19 @@ func (p *GitProject) GetBaseDir () string {
 	return p.BaseDir
 }
 
+func (p *GitProject) getCmdBaseDir () string {
+	if CYGWIN_ON {
+		return cygwinPath(p.BaseDir, CYGWIN_BASE_DIR)
+	}
+	return p.BaseDir
+}
+
 func (p *GitProject) GetMetadataDir () string {
 	return filepath.Join(p.BaseDir, ".git")
 }
 
 func (p *GitProject) getCurrentBranch () (string, error) {
-	cmd := fmt.Sprintf("%s -C %s branch", GIT_BIN, p.BaseDir)
+	cmd := fmt.Sprintf("%s -C %s branch", GIT_BIN, p.getCmdBaseDir())
 	contrib.PrintDebugCommand(cmd)
 	err := contrib.Exec2Lines(cmd, func (line string) {
 		if strings.HasPrefix(line, "* ") {
@@ -798,7 +825,7 @@ func (p *GitProject) clone (updatedList *map[string]string) error {
 	if p.Branch == "" {
 		cmd = fmt.Sprintf(
 			"%s clone %s %s",
-			GIT_BIN, p.Url, p.BaseDir,
+			GIT_BIN, p.Url, p.getCmdBaseDir(),
 		)
 		contrib.PrintDebugCommand(cmd)
 		err := contrib.Exec2Lines(cmd, nil)
@@ -809,7 +836,7 @@ func (p *GitProject) clone (updatedList *map[string]string) error {
 	} else {
 		cmd = fmt.Sprintf(
 			"%s clone %s -b %s %s",
-			GIT_BIN, p.Url, p.Branch, p.BaseDir,
+			GIT_BIN, p.Url, p.Branch, p.getCmdBaseDir(),
 		)
 		contrib.PrintDebugCommand(cmd)
 		err := contrib.Exec2Lines(cmd, nil)
@@ -842,7 +869,7 @@ func (p *GitProject) extractSyncPath(line string, updatedList *map[string]string
 func (p *GitProject) sync (updatedList *map[string]string) error {
 	cmd := fmt.Sprintf(
 		"%s -C %s fetch --all",
-		GIT_BIN, p.BaseDir,
+		GIT_BIN, p.getCmdBaseDir(),
 	)
 	contrib.PrintDebugCommand(cmd)
 	contrib.Exec2Lines(cmd, nil)
@@ -852,7 +879,7 @@ func (p *GitProject) sync (updatedList *map[string]string) error {
 
 	cmd = fmt.Sprintf(
 		"%s -C %s diff HEAD \"origin/%s\"",
-		GIT_BIN, p.BaseDir, p.Branch,
+		GIT_BIN, p.getCmdBaseDir(), p.Branch,
 	)
 	contrib.PrintDebugCommand(cmd)
 	err := contrib.Exec2Lines(cmd, func (line string) {
@@ -870,7 +897,7 @@ func (p *GitProject) sync (updatedList *map[string]string) error {
 
 	cmd = fmt.Sprintf(
 		"%s -C %s reset --hard \"origin/%s\"",
-		GIT_BIN, p.BaseDir, p.Branch,
+		GIT_BIN, p.getCmdBaseDir(), p.Branch,
 	)
 	contrib.PrintDebugCommand(cmd)
 	err = contrib.Exec2Lines(cmd, nil)
@@ -924,8 +951,12 @@ func (p *GitProject) GetFileTextContents (path, revision string) (string, error)
 }
 
 func (p *GitProject) GetFileBinaryContents (path, revision string) ([]byte, error) {
-	url := fmt.Sprintf("%s:%s", revision, strings.TrimLeft(path, string(filepath.Separator)))
-	cmd := fmt.Sprintf("%s -C %s show %s", GIT_BIN, p.BaseDir, url)
+	sep := string(filepath.Separator)
+	if CYGWIN_ON {
+		sep = "/"
+	}
+	url := fmt.Sprintf("%s:%s", revision, strings.TrimLeft(path, sep))
+	cmd := fmt.Sprintf("%s -C %s show %s", GIT_BIN, p.getCmdBaseDir(), url)
 	contrib.PrintDebugCommand(cmd)
 	var err error
 	B := make([]byte, 0)
@@ -960,8 +991,12 @@ func (p *GitProject) GetFileHash (path, revision string) (string, error) {
 		url = filepath.Join(p.BaseDir, path)
 		return contrib.FileHash(url)
 	} else {
-		url = fmt.Sprintf("%s:%s", revision, strings.TrimLeft(path, string(filepath.Separator)))
-		cmd := fmt.Sprintf("%s -C %s show %s", GIT_BIN, p.BaseDir, url)
+		sep := string(filepath.Separator)
+		if CYGWIN_ON {
+			sep = "/"
+		}
+		url = fmt.Sprintf("%s:%s", revision, strings.TrimLeft(path, sep))
+		cmd := fmt.Sprintf("%s -C %s show %s", GIT_BIN, p.getCmdBaseDir(), url)
 		contrib.PrintDebugCommand(cmd)
 		var hash string
 		var err error
@@ -978,8 +1013,12 @@ func (p *GitProject) GetFileLength (path, revision string) (int64, error) {
 		url = filepath.Join(p.BaseDir, path)
 		return contrib.FileLen(url)
 	} else {
-		url = fmt.Sprintf("%s:%s", revision, strings.TrimLeft(path, string(filepath.Separator)))
-		cmd := fmt.Sprintf("%s -C %s show %s", GIT_BIN, p.BaseDir, url)
+		sep := string(filepath.Separator)
+		if CYGWIN_ON {
+			sep = "/"
+		}
+		url = fmt.Sprintf("%s:%s", revision, strings.TrimLeft(path, sep))
+		cmd := fmt.Sprintf("%s -C %s show %s", GIT_BIN, p.getCmdBaseDir(), url)
 		contrib.PrintDebugCommand(cmd)
 		var L int64
 		var err error
@@ -1008,7 +1047,7 @@ func (p *GitProject) GetFileBlameInfo (path, revision string, startLine, endLine
 	}
 	cmd := fmt.Sprintf(
 		"%s -C %s blame -e -l %s %s -- %s",
-		GIT_BIN, p.BaseDir, Lrange, revision, filepath.Join(p.BaseDir, path),
+		GIT_BIN, p.getCmdBaseDir(), Lrange, revision, filepath.Join(p.getCmdBaseDir(), path),
 	)
 	contrib.PrintDebugCommand(cmd)
 	blames := make([]*BlameDetails, 0)
@@ -1070,7 +1109,7 @@ func (p *GitProject) GetFileBlameInfo (path, revision string, startLine, endLine
 func (p *GitProject) GetFileCommitInfo (path string, offset, N int) ([]string, error) {
 	cmd := fmt.Sprintf(
 		"%s -C %s log --pretty=format:%%H -- %s",
-		GIT_BIN, p.BaseDir, filepath.Join(p.BaseDir, path),
+		GIT_BIN, p.getCmdBaseDir(), filepath.Join(p.getCmdBaseDir(), path),
 	)
 	contrib.PrintDebugCommand(cmd)
 	commits := make([]string, 0)
@@ -1104,9 +1143,13 @@ func (p *GitProject) GetDirContents (path, revision string) ([]string, error) {
 	if revision == "" {
 		revision = p.Branch
 	}
+	cmdPath := path
+	if CYGWIN_ON {
+		cmdPath = cygwinPath(path, CYGWIN_BASE_DIR)
+	}
 	cmd := fmt.Sprintf(
 		"%s -C %s ls-tree --name-only %s -- %s",
-		GIT_BIN, p.BaseDir, revision, path,
+		GIT_BIN, p.getCmdBaseDir(), revision, cmdPath,
 	)
 	contrib.PrintDebugCommand(cmd)
 	contrib.Exec2Lines(cmd, func (line string) {

@@ -7,4 +7,5 @@ cmd/zoekt-git-index/zoekt-git-index
 
 local
 *.swp
-generated-search.html.tpl
+dist
+node_modules

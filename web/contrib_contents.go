@@ -312,6 +312,10 @@ func (s *Server) serveScmPrint(w http.ResponseWriter, r *http.Request) {
 			}
 			sendScmDirectoryContents(w, fileList4aGet)
 		} else {
+			// TODO: check if fileStr is a file
+			// e.g. in git, the request will trigger cmd `git show rev:path`
+			//      and if it is a dir, the cmd will print diff in the path,
+			//      instead of showing real file contents
 			fileBin4aGet, err := project.GetFileBinaryContents(fileStr, revision)
 			if err != nil {
 				utilError(w, err, 400)
