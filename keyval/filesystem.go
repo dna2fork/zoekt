@@ -25,6 +25,7 @@ var defaultConfig config
 func init() {
 	baseDirStr := os.Getenv("KEYVAL_STORAGE_FS_BASE_DIR")
 	if baseDirStr == "" {
+		fmt.Println("[!] No key-value support (KEYVAL_STORAGE_FS_BASE_DIR)")
 		return
 	}
 	baseDir, err := filepath.Abs(baseDirStr)

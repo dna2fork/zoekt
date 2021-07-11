@@ -16,6 +16,10 @@ var defaultStorage = StorageFilesystem{}
 func ServeBasic(w http.ResponseWriter, r *http.Request) {
 	// /keyval/_?k=keyval://path/to/sth&sk=index/0000
 	// -> /storage/keyval/path/to/sth/_/index/0000
+
+	// k=, sk=, a=, <body>
+	// a=list -> k.<sub keys>
+	// POST:<body> -> put
 	qv := r.URL.Query()
 	key := qv.Get("k")
 	if key == "" {
@@ -93,7 +97,7 @@ func putKeyValue(url string, subkey string, w http.ResponseWriter, r *http.Reque
 		subkey = "_"
 	}
 	key = defaultStorage.WithSubkey(key, subkey)
-	r.Body = http.MaxBytesReader(w, r.Body, maxValueSize)	
+	r.Body = http.MaxBytesReader(w, r.Body, maxValueSize)
 	value, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
@@ -110,16 +114,28 @@ func putKeyValue(url string, subkey string, w http.ResponseWriter, r *http.Reque
 
 func delKey(url string, subkey string, w http.ResponseWriter, r *http.Request) {
 	key := defaultStorage.UrlToKey(url)
+	all := false
 	if subkey == "" {
 		subkey = "_"
+		all = true
 	}
-	key = defaultStorage.WithSubkey(key, subkey)
-	_, ok := defaultStorage.Get(key)
+	key0 := defaultStorage.WithSubkey(key, subkey)
+	_, ok := defaultStorage.Get(key0)
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-	ok = defaultStorage.Del(key)
+	if all {
+		list := defaultStorage.ListSubkey(key)
+		for _, sk := range list {
+			ok = defaultStorage.Del(defaultStorage.WithSubkey(key, sk))
+			// TODO: !ok
+		}
+		w.Header().Add("Content-Type", "text/plain")
+		w.Write([]byte(url + "#" + strings.Join(list, ",")))
+		return
+	}
+	ok = defaultStorage.Del(key0)
 	if !ok {
 		http.Error(w, "Internal Error", http.StatusInternalServerError)
 		return
