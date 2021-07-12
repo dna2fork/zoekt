@@ -1,0 +1,157 @@
+<!doctype html>
+<html>
+<head>
+   <title>Flame</title>
+   <meta charset='utf-8' />
+   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+   <link rel="stylesheet" href="css/common.css" />
+   <style>
+   body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+   }
+   .nav-icon-bar {
+      border-right: 1px solid #ccc;
+   }
+   .nav-icon-btn {
+      width: 24px;
+      height: 24px;
+      cursor: pointer;
+      padding: 5px 8px 5px 8px;
+      margin-top: 5px;
+   }
+   .nav-icon-btn:hover {
+      border-right: 3px solid #ccc;
+      background: #eee;
+   }
+   .nav-icon-btn.active {
+      border-right: 3px solid black;
+   }
+   .side-view {
+      width: 300px;
+      margin: 3px;
+   }
+   .flex-inner-box {
+      height: 100%;
+      width: 100%;
+   }
+   .folder-fold-btn {
+      background: url('img/angle.svg');
+      width: 12px;
+      height: 12px;
+      text-decoration: none;
+      display: inline-block;
+      margin: 1px;
+      padding: 1px;
+      cursor: pointer
+   }
+   .folder-fold-btn.active {
+      transform: rotate(180deg);
+   }
+   .scrollable {
+      height: 100%;
+      overflow: auto;
+      white-space: nowrap;
+   }
+   .item-container.folder {
+      border-left: 2px solid black;
+   }
+   a.search-btn {
+      margin-left: 2px;
+   }
+   a.search-btn > img {
+      width: 12px;
+      height: 12px;
+   }
+   .content-container {
+      padding-right: 2px;
+   }
+   .nav-link > img {
+      width: 12px;
+      height: 12px;
+      padding: 0px;
+   }
+   .nav-item.clickable {
+      cursor: pointer;
+   }
+   .nav-item.clickable:hover {
+      background: #eee;
+   }
+   </style>
+</head>
+<body><div class="flex-frame flex-column">
+   <header class="header header-5">
+      <div class="branding">
+         <img class="header-icon" src="img/logo.png" />&nbsp;
+         <span class="title">Flame</span>
+      </div>
+   </header>
+   <div class="flex-auto"><div class="flex-frame flex-column">
+      <div class="subnav">
+         <ul class="nav">
+            <li class="nav-item clickable"><a class="nav-link active">
+               <img src="img/user.svg" />
+               Flame
+            </a></li>
+         </ul>
+      </div>
+      <div class="flex-auto"><div class="flex-frame flex-row">
+         <div class="nav-icon-bar">
+            <div><img src="img/search.svg" class="nav-icon-btn active" /></div>
+            <div><img src="img/folder.svg" class="nav-icon-btn" /></div>
+            <div><img src="img/talk-bubbles.svg" class="nav-icon-btn" /></div>
+            <div><img src="img/cog.svg" class="nav-icon-btn" /></div>
+         </div>
+         <div class="side-view scrollable"><div>
+            <div data-panel="search">
+               <div class="item-thin item-yellow">Search</div>
+               <div class="item-thin item-yellow">
+                  <div class="flex-frame flex-row">
+                     <input class="flex-auto item-input" />
+                     <a class="item-btn search-btn"><img src="img/search-line.svg"/></a>
+                  </div>
+               </div>
+            </div>
+
+            <div data-panel="browse">
+               <div class="item-thin item-yellow">Browse</div>
+               <div class="item-thin">
+                  <a class="folder-fold-btn"></a>Project
+                  <div class="item-container folder">
+                     <div class="item-thin">
+                        Test
+                        <div class="item-container folder">
+                           <div class="item-thin">abcdefghijklmnopqrstuvwxyz abcdefghijklmnopqrstuvwxyz</div>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+            </div>
+
+            <div data-panel="team">
+               <div class="item-thin item-yellow">Team</div>
+            </div>
+
+            <div data-panel="settings">
+               <div class="item-thin item-yellow">Settings</div>
+            </div>
+         </div></div>
+         <div class="content-container flex-auto"><div class="flex-frame flex-column">
+            <div class="item-thin item-yellow">&nbsp; # / test1 / next / README.md</div>
+            <div class="flex-auto item-gray-1">Under construction</div>
+         </div></div>
+      </div></div>
+   </div></div>
+   <footer>
+      <div class="item item-red"></div>
+   </footer>
+   <script type="text/javascript" src="js/common.js"></script>
+   <script type="text/javascript" src="js/api.js"></script>
+   <script type="text/javascript" src="js/index.js"></script>
+   <!-- <script type="text/javascript">
+   (function() { if (is_mobile_browser()) window.location = '/m/'; })();
+   </script> -->
+</div></body>
+</html>
+
