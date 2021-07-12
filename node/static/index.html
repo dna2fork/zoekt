@@ -98,23 +98,23 @@
       </div>
       <div class="flex-auto"><div class="flex-frame flex-row">
          <div class="nav-icon-bar">
-            <div><img src="img/search.svg" class="nav-icon-btn active" /></div>
-            <div><img src="img/folder.svg" class="nav-icon-btn" /></div>
-            <div><img src="img/talk-bubbles.svg" class="nav-icon-btn" /></div>
-            <div><img src="img/cog.svg" class="nav-icon-btn" /></div>
+            <div><img id="btn-search" src="img/search.svg" class="nav-icon-btn" /></div>
+            <div><img id="btn-browse" src="img/folder.svg" class="nav-icon-btn" /></div>
+            <div><img id="btn-team" src="img/talk-bubbles.svg" class="nav-icon-btn" /></div>
+            <div><img id="btn-settings" src="img/cog.svg" class="nav-icon-btn" /></div>
          </div>
-         <div class="side-view scrollable"><div>
-            <div data-panel="search">
+         <div id="pnl-side" class="side-view scrollable" style="display:none;"><div>
+            <div id="pnl-side-search">
                <div class="item-thin item-yellow">Search</div>
                <div class="item-thin item-yellow">
                   <div class="flex-frame flex-row">
                      <input class="flex-auto item-input" />
-                     <a class="item-btn search-btn"><img src="img/search-line.svg"/></a>
+                     <a class="item-btn search-btn"><img src="img/search.svg"/></a>
                   </div>
                </div>
             </div>
 
-            <div data-panel="browse">
+            <div id="pnl-side-browse">
                <div class="item-thin item-yellow">Browse</div>
                <div class="item-thin">
                   <a class="folder-fold-btn"></a>Project
@@ -129,11 +129,11 @@
                </div>
             </div>
 
-            <div data-panel="team">
+            <div id="pnl-side-team">
                <div class="item-thin item-yellow">Team</div>
             </div>
 
-            <div data-panel="settings">
+            <div id="pnl-side-settings">
                <div class="item-thin item-yellow">Settings</div>
             </div>
          </div></div>
