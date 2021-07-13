@@ -171,6 +171,8 @@ a.item:hover {
 .flex-column { flex-direction: column; }
 .flex-row { flex-direction: row; }
 .flex-auto { flex: 1 1 auto; }
+.flex-h0 { height: 0px; }
+.flex-w0 { width: 0px; }
 
 @keyframes spinner {
    to {

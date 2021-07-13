@@ -335,6 +335,9 @@ function onHashChange() {
       if (obj.path === '/') {
       } else if (obj.path.startsWith('/')) {
          ui.panel.browse_tree.asyncExpandTo(obj.path);
+         if (!obj.path.endsWith('/')) {
+            onView(obj.path);
+         }
       } else if (obj.path.startsWith('?')) {
          var query = decodeURIComponent(obj.path.substring(1));
          onSearch(query);
@@ -387,9 +390,15 @@ function renderSearchItem(item, opt) {
       return div;
    }
    var match = document.createElement('div');
-   match.className = 'flex-table flex-row search-match-item item-thin item-purple';
+   match.className = 'search-match-item item-thin item-purple';
+   match.style.width = '100%';
+   match.style.overflowX = 'auto';
    var lineno = document.createElement('div');
    lineno.style.font = ui.state.const.pre_font;
+   lineno.style.float = 'left';
+   lineno.style.position = 'sticky';
+   lineno.style.left = '0px';
+   lineno.style.backgroundColor = 'white';
    var pre = document.createElement('pre');
    pre.className = 'flex-auto';
    item.matches.forEach(function (match, i) {
@@ -422,6 +431,17 @@ function renderSearchItems(result) {
    result.items.forEach(function (item) {
       ui.panel.search_result.appendChild(renderSearchItem(item, opt));
    });
+}
+
+function onView(path, opt) {
+   if (!opt) opt = {};
+   // TODO: locate to sepcified line number
+   Flame.api.project.getFileContents(path).then(
+      function (obj) {
+         var editor = new Flame.editor.SourceCodeViewer(ui.panel.contents, obj.data);
+      },
+      function () {}
+   );
 }
 
 function onSearch(query) {
