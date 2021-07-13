@@ -72,6 +72,23 @@ var ui = {
          select: function (el) { el.classList.add('active'); },
          deselect: function (el) { el.classList.remove('active'); }
       },
+      treeview: {
+         scroll_to: function (el) {
+            if (ui.state.nav.selected !== 'browse') return;
+            var top = el.offsetTop - ui.panel.side.offsetTop;
+            var top0 = ui.panel.side.scrollTop;
+            var h = el.offsetHeight;
+            var h0 = ui.panel.side.offsetHeight;
+            var x = ui.panel.side.scrollLeft;
+            if (top0 > top) {
+               ui.panel.side.scrollTo(x, top);
+            } else if (top0 + h0 - h < top) {
+               var y = top - h0 + h;
+               if (y < 0) y = 0;
+               ui.panel.side.scrollTo(x, y);
+            }
+         }
+      },
       label: {
          text: function (el, val) {
             el.innerHTML = '';
@@ -289,14 +306,16 @@ FolderTree.prototype = {
                if (ui.state.nav.selected !== 'browse') {
                   onSwitchSidePanel({ target: ui.btn.nav.browse });
                }
-               // TODO: scroll to target node if view is long
                if (lastNode) {
-                  var name = path.split('/').pop();
+                  var name = path.split('/').pop(), ch = null;
                   if (name) {
-                     var ch = lastNode.children[name];
-                     if (ch) ui.state.flash(ch.dom);
+                     ch = (lastNode.children[name] || {}).dom;
                   } else {
-                     ui.state.flash(lastNode.dom());
+                     ch = lastNode.dom();
+                  }
+                  if (ch) {
+                     ui.state.treeview.scroll_to(ch);
+                     ui.state.flash(ch);
                   }
                   lastNode = null;
                }
@@ -339,9 +358,10 @@ function onHashChange() {
    console.log(location.hash);
    var obj = parseHash();
    if (obj.path) {
-      if (obj.path === '/') {
-      } else if (obj.path.startsWith('/')) {
+      if (obj.path.startsWith('/')) {
          ui.panel.browse_tree.asyncExpandTo(obj.path);
+         if (ui.state.global.editor) ui.state.global.editor.dispose();
+         ui.state.empty(ui.panel.contents);
          ui.state.empty(ui.panel.title);
          renderBreadcrumb(obj.path);
          if (!obj.path.endsWith('/')) {
