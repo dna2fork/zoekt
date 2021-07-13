@@ -57,6 +57,10 @@ var ui = {
             setTimeout(_flash, 200, el);
          }
       },
+      append_text: function (el, text) {
+         el.appendChild(document.createTextNode(text));
+         return el;
+      },
       div_message: function (msg, color) {
          var div = document.createElement('div');
          div.className = 'item item-' + (color || 'red');
@@ -74,6 +78,9 @@ var ui = {
             el.appendChild(document.createTextNode(val));
          }
       }, // label
+      global: {
+         editor: null
+      },
       const: {
          pre_font: null
       }
@@ -110,7 +117,7 @@ function FolderNode(name, path) {
    this.ui.self.appendChild(this.ui.fold);
    this.ui.self.appendChild(this.ui.name);
    this.ui.self.appendChild(this.ui.items);
-   this.ui.name.appendChild(document.createTextNode(name));
+   ui.state.append_text(this.ui.name, name);
 
    this.name = name;
    this.path = path;
@@ -126,7 +133,7 @@ FolderNode.prototype = {
       var span = document.createElement('span');
       span.className = 'spin spin-sm';
       div.appendChild(span);
-      div.appendChild(document.createTextNode(' Loading ...'));
+      ui.state.append_text(div, ' Loading ...');
       this.childrenReset();
       this.ui.items.appendChild(div);
       return div;
@@ -139,7 +146,7 @@ FolderNode.prototype = {
       img.style.width = '14px';
       img.style.height = '14px';
       div.appendChild(img);
-      div.appendChild(document.createTextNode(err || 'Unknown Error'));
+      ui.state.append_text(div, err || 'Unknown Error');
       this.childrenReset();
       this.ui.items.appendChild(div);
       return div;
@@ -152,7 +159,7 @@ FolderNode.prototype = {
       var div = document.createElement('a');
       div.className = 'item-thin';
       div.href = url;
-      div.appendChild(document.createTextNode(name));
+      ui.state.append_text(div, name);
       this.ui.items.appendChild(div);
       return div;
    },
@@ -335,6 +342,8 @@ function onHashChange() {
       if (obj.path === '/') {
       } else if (obj.path.startsWith('/')) {
          ui.panel.browse_tree.asyncExpandTo(obj.path);
+         ui.state.empty(ui.panel.title);
+         renderBreadcrumb(obj.path);
          if (!obj.path.endsWith('/')) {
             onView(obj.path);
          }
@@ -384,7 +393,7 @@ function renderSearchItem(item, opt) {
    var div = document.createElement('div');
    div.className = 'item-thin item-blue search-item';
    var a = document.createElement('a');
-   a.appendChild(document.createTextNode(item.path));
+   ui.state.append_text(a, item.path);
    a.href = '#' + item.path;
    if (!item.matches || !item.matches.length) {
       return div;
@@ -408,8 +417,8 @@ function renderSearchItem(item, opt) {
       }
       var a = document.createElement('a');
       var span = document.createElement('a');
-      a.appendChild(document.createTextNode(match.L));
-      span.appendChild(document.createTextNode(match.T));
+      ui.state.append_text(a, item.L);
+      ui.state.append_text(span, item.T);
       span.href = '#' + item.path + '#L' + match.L;
       lineno.appendChild(a);
       pre.appendChild(span);
@@ -436,12 +445,34 @@ function renderSearchItems(result) {
 function onView(path, opt) {
    if (!opt) opt = {};
    // TODO: locate to sepcified line number
+   if (ui.state.global.editor) ui.state.global.editor.dispose();
+   ui.state.empty(ui.panel.contents);
    Flame.api.project.getFileContents(path).then(
       function (obj) {
          var editor = new Flame.editor.SourceCodeViewer(ui.panel.contents, obj.data);
+         ui.state.global.editor = editor;
       },
       function () {}
    );
+}
+
+function renderBreadcrumb(path) {
+   var parts = path.split('/');
+   parts.shift();
+   var last = parts.pop();
+   if (!last) last = parts.pop();
+   if (!last) return;
+   ui.state.append_text(ui.panel.title, '# / ');
+   var curpath = '/';
+   parts.forEach(function (name) {
+      curpath += name + '/';
+      var a = document.createElement('a');
+      ui.state.append_text(a, name);
+      a.href = '#' + curpath;
+      ui.panel.title.appendChild(a);
+      ui.state.append_text(ui.panel.title, ' / ')
+   });
+   ui.state.append_text(ui.panel.title, last);
 }
 
 function onSearch(query) {

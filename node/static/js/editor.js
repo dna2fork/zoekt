@@ -53,7 +53,8 @@ SourceCodeViewer.prototype = {
          span.appendChild(document.createTextNode(line));
          that.ui.text.appendChild(span);
       });
-   }
+   },
+   dispose: function () {}
 };
 
 if (!window.Flame) window.Flame = {};
