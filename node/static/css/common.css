@@ -162,6 +162,26 @@ a.item:hover {
    height: 100%;
    overflow: hidden;
 }
+.flex-table {
+   display: flex;
+   width: 100%;
+   overflow: hidden;
+}
 .flex-column { flex-direction: column; }
 .flex-row { flex-direction: row; }
 .flex-auto { flex: 1 1 auto; }
+
+@keyframes spinner {
+   to {
+      transform: rotate(360deg);
+   }
+}
+.spin::before {
+   display: inline-block;
+   animation: spinner 1s ease-in-out infinite;
+   animation-play-state: inherit;
+   border: solid 3px #cfd0d1;
+   border-top-color: #1c87c9;
+   border-radius: 50%;
+   content: "";
+}

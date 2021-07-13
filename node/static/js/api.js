@@ -18,16 +18,27 @@ var api = {
    }, // user
    project: {
       getList: function () {
-         return Promise.resolve(['test1', 'test2', 'test3']);
+         return Promise.resolve([
+            { name: 'test1/' }, { name: 'test2/' }, { name: 'test3/' }
+         ]);
       }, // getList
-      getDirectoryContents: function (project, path) {
+      getDirectoryContents: function (path) {
+         // e.g. convert / request to api.project.getList
+         // otherwise get dir contents
+         if (!path || path === '/') return api.project.getList();
+         if (path && path.split('/').length > 3) {
+            return Promise.resolve([
+               { name: 'README.md' },
+               { name: 'test.js' }
+            ]);
+         }
          return Promise.resolve([
             { name: 'next/' },
             { name: 'pcakge.json' },
             { name: 'README.md' }
          ]);
       }, // getDirectoryContents
-      getFileContents: function (project, path) {
+      getFileContents: function (path) {
          return Promise.resolve({
             binary: false,
             data: 'This is a test readme file.'

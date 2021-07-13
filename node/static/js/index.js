@@ -1,4 +1,5 @@
 'use strict';
+//@include js/common.js
 //@include js/api.js
 
 (function () {
@@ -10,24 +11,221 @@ var ui = {
          browse: dom('#btn-browse'),
          team: dom('#btn-team'),
          settings: dom('#btn-settings')
+      },
+      search: {
+         act: dom('#search_btn-search')
       }
    }, // btn
+   txt: {
+      search: {
+         query: dom('#search_txt-search')
+      }
+   }, // txt
    panel: {
       side: dom('#pnl-side'),
       search: dom('#pnl-side-search'),
+      search_result: dom('#search_pnl-item'),
       browse: dom('#pnl-side-browse'),
+      browse_tree: dom('#browse_pnl-tree'),
       team: dom('#pnl-side-team'),
-      settings: dom('#pnl-side-settings')
+      settings: dom('#pnl-side-settings'),
+      title: dom('#pnl-title'), // e.g. show breadcrumb
+      contents: dom('#pnl-contents'), // e.g. show source code
+      mask: dom('.mask')
    }, // panel
+   label: {
+      username: dom('#lbl-username')
+   }, // label
    state: {
       show: function (el) { el.style.display = 'block'; },
       hide: function (el) { el.style.display = 'none'; },
+      empty: function (el) { empty_elem(el); },
+      div_message: function (msg, color) {
+         var div = document.createElement('div');
+         div.className = 'item item-' + (color || 'red');
+         div.appendChild(document.createTextNode(msg));
+         return div;
+      },
       nav: {
          selected: null,
          select: function (el) { el.classList.add('active'); },
          deselect: function (el) { el.classList.remove('active'); }
+      },
+      label: {
+         text: function (el, val) {
+            el.innerHTML = '';
+            el.appendChild(document.createTextNode(val));
+         }
+      }, // label
+      const: {
+         pre_font: null
       }
    }
+};
+
+/*
+<div class="item-thin">
+   <a class="folder-fold-btn"></a><span>{item-name}</span>
+   <div class="item-container folder">
+   </div>
+</div>
+ */
+function FolderNode(name, path) {
+   this.ui = {
+      self: document.createElement('div'),
+      fold: document.createElement('a'),
+      name: document.createElement('span'),
+      items: document.createElement('div')
+   }
+   this.ui.self.className = 'item-thin';
+   this.ui.fold.className = 'folder-fold-btn';
+   this.ui.fold.setAttribute('data-path', path);
+   this.ui.items.className = 'item-container folder';
+   this.ui.items.style.display = 'none';
+   this.ui.self.appendChild(this.ui.fold);
+   this.ui.self.appendChild(this.ui.name);
+   this.ui.self.appendChild(this.ui.items);
+   this.ui.name.appendChild(document.createTextNode(name));
+/* debug */ this.childrenLoading();
+
+   this.name = name;
+   this.path = path;
+   this.children = {};
+   this.state = 'none'; // none -> loading -> loaded/error
+}
+FolderNode.prototype = {
+   dom: function () { return this.ui.self; },
+   isFolded: function () { return this.ui.items.style.display === 'none'; },
+   childrenReset: function () { ui.state.empty(this.ui.items); },
+   childrenLoading: function() {
+      var div = document.createElement('div');
+      var span = document.createElement('span');
+      span.className = 'spin spin-sm';
+      div.appendChild(span);
+      div.appendChild(document.createTextNode(' Loading ...'));
+      this.childrenReset();
+      this.ui.items.appendChild(div);
+      return div;
+   },
+   childrenError: function (err) {
+      var div = document.createElement('div');
+      div.className = 'item-thin item-red';
+      var img = document.createElement('img');
+      img.src = 'img/exclamation.svg';
+      img.style.width = '14px';
+      img.style.height = '14px';
+      div.appendChild(img);
+      div.appendChild(document.createTextNode(err || 'Unknown Error'));
+      this.childrenReset();
+      this.ui.items.appendChild(div);
+      return div;
+   },
+   addItem: function (node) {
+      this.ui.items.appendChild(node.dom());
+      return node.dom();
+   },
+   addFileItem: function (name, url) {
+      var div = document.createElement('div');
+      div.className = 'item-thin';
+      div.appendChild(document.createTextNode(name));
+      this.ui.items.appendChild(div);
+      return div;
+   },
+   asyncFold: function () {
+      this.ui.items.style.display = 'none';
+      this.ui.fold.classList.remove('active');
+      return Promise.resolve(true);
+   },
+   asyncUnfold: function () {
+      this.ui.fold.classList.add('active');
+      this.ui.items.style.display = 'block';
+      if (this.state !== 'none' && this.state !== 'error') {
+         // loading, loaded
+         return Promise.resolve(true);
+      }
+      var that = this;
+      this.state = 'loading';
+      this.childrenLoading();
+      return new Promise(function(r, e) {
+         Flame.api.project.getDirectoryContents(that.path).then(
+            function (result) {
+               that.childrenReset();
+               if (!result || !result.length) {
+                  that.state = 'error';
+                  return r(false);
+               }
+               result.forEach(function (item) {
+                  if (!item.name) return;
+                  if (item.name.endsWith('/')) {
+                     var node = new FolderNode(
+                        item.name.substring(0, item.name.length-1),
+                        that.path + item.name
+                     );
+                     that.addItem(node);
+                     that.children[item.name] = node;
+                  } else {
+                     var div = that.addFileItem(item.name, '#' + that.path + item.name);
+                     that.children[item.name] = {
+                        file: true,
+                        dom: div
+                     };
+                  }
+               });
+               that.state = 'loaded';
+               r(true);
+            },
+            function (err) {
+               that.childrenError(err);
+               that.state = 'error';
+               r(false);
+            }
+         );
+      });
+   }
+};
+function FolderTree(dom) {
+   this.self = dom;
+   // none -> loading -> loaded
+   //               \--> error
+   this.root = new FolderNode('', '/');
+   this.root.ui.self = this.self;
+   this.root.ui.items = this.self;
+   this.root.childrenReset();
+   this.task_queue = [];
+
+   var that = this;
+   this.root.ui.self.addEventListener('click', function (evt) {
+      var el = evt.target;
+      if (el.classList.contains('folder-fold-btn')) {
+         var node = that.locateNode(el.getAttribute('data-path'));
+         if (!node) return;
+         if (node.isFolded()) {
+            node.asyncUnfold();
+         } else {
+            node.asyncFold();
+         }
+      }
+   })
+}
+FolderTree.prototype = {
+   dom: function () { return this.self; },
+   locateNode: function (path) {
+      if (!path || !path.endsWith('/')) return null;
+      var node = this.root;
+      var parts = path.split('/');
+      // /path/to/folder/ -> '', 'path', 'to', 'folder', ''
+      parts.shift();
+      parts.pop();
+      while (node && parts.length) {
+         var name = parts.shift();
+         node = node.children[name + '/'];
+      }
+      return node;
+   },
+   asyncExpandTo: function (path) { return new Promise(function (r, e) {
+      // TODO: 1. generate loading tasks
+      // TODO: 2. wait for tasks complete, or throw error
+   }); }
 };
 
 function onHashChange() {
@@ -57,15 +255,111 @@ function onSwitchSidePanel(evt) {
    }
 }
 
+/*
+<div class="item-thin item-blue">
+   <a>{path}</a>
+   <div class="flex-table flex-row search-match-item item-thin item-purple">
+      <div style="font: 13px monospace;"><a>{line-number}</a></div>
+      <pre class="flex-auto"><span>{matched-text}</span></pre>
+   </div>
+</div>
+ */
+function renderSearchItem(item, opt) {
+   var div = document.createElement('div');
+   div.className = 'item-thin item-blue';
+   var a = document.createElement('a');
+   a.appendChild(document.createTextNode(item.path));
+   if (!item.matches || !item.matches.length) {
+      return div;
+   }
+   var match = document.createElement('div');
+   match.className = 'flex-table flex-row search-match-item item-thin item-purple';
+   var lineno = document.createElement('div');
+   lineno.style.font = ui.state.const.pre_font;
+   var pre = document.createElement('pre');
+   pre.className = 'flex-auto';
+   item.matches.forEach(function (match, i) {
+      if (i > 0) {
+         lineno.appendChild(document.createElement('br'));
+         pre.appendChild(document.createElement('br'));
+      }
+      var a = document.createElement('a');
+      var span = document.createElement('span');
+      a.appendChild(document.createTextNode(match.L));
+      span.appendChild(document.createTextNode(match.T));
+      lineno.appendChild(a);
+      pre.appendChild(span);
+   });
+   div.appendChild(a);
+   match.appendChild(lineno);
+   match.appendChild(pre);
+   div.appendChild(match);
+   return div;
+}
+function renderSearchItems(result) {
+   ui.state.empty(ui.panel.search_result);
+   if (!result.items || !result.items.length) {
+      ui.panel.search_result.appendChild(ui.state.div_message('Search result: nothing found.'));
+      return;
+   }
+   var opt = {};
+   // TODO: add options to opt object, e.g. opt.regexp = result.matchRegexp
+   result.items.forEach(function (item) {
+      ui.panel.search_result.appendChild(renderSearchItem(item, opt));
+   });
+}
+
+function onSearch(query) {
+   // TODO: handle prev query processing, e.g. cancel, parallel
+   Flame.api.project.search(query).then(
+      function (result) {
+         renderSearchItems(result);
+      },
+      function () {
+         // TODO: handle errors
+      }
+   );
+}
+
+function onSearchFromBtn(evt) {
+   var query = ui.txt.search.query.value;
+   if (!query) {
+      ui.txt.search.query.focus();
+      return;
+   }
+   onSearch(query);
+}
+
+function onSearchFromInput(evt) {
+   if (evt.code !== 'Enter') return;
+   var query = ui.txt.search.query.value;
+   if (!query) return;
+   onSearch(query);
+}
+
 function initEvent() {
    window.addEventListener('hashchange', onHashChange);
    ui.btn.nav.search.addEventListener('click', onSwitchSidePanel);
    ui.btn.nav.browse.addEventListener('click', onSwitchSidePanel);
    ui.btn.nav.team.addEventListener('click', onSwitchSidePanel);
    ui.btn.nav.settings.addEventListener('click', onSwitchSidePanel);
+   ui.btn.search.act.addEventListener('click', onSearchFromBtn);
+   ui.txt.search.query.addEventListener('keypress', onSearchFromInput)
 }
 
 function initComponent() {
+   var cookie = get_cookie();
+   ui.state.label.text(ui.label.username, cookie.user || '(flame)');
+   // TODO: if cookie.user is empty
+
+   // debug
+   ui.panel.browse_tree = new FolderTree(ui.panel.browse_tree);
+   ui.panel.browse_tree.root.asyncUnfold();
+
+   var pre = document.createElement('pre');
+   document.body.appendChild(pre);
+   ui.state.const.pre_font = getComputedStyle(pre).font;
+   document.body.removeChild(pre);
 }
 
 function initApplication() {
