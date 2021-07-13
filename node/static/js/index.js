@@ -403,9 +403,9 @@ function onSwitchSidePanel(evt) {
 /*
 <div class="item-thin item-blue">
    <a>{path}</a>
-   <div class="flex-table flex-row search-match-item item-thin item-purple">
-      <div style="font: 13px monospace;"><a>{line-number}</a></div>
-      <pre class="flex-auto"><a>{matched-text}</a></pre>
+   <div class="flex-table flex-row item-thin item-purple">
+      <div class="editor-linenumber" style="font: 13px monospace;"><a>{line-number}</a></div>
+      <pre class="editor-text flex-auto"><a>{matched-text}</a></pre>
    </div>
 </div>
  */
@@ -419,18 +419,14 @@ function renderSearchItem(item, opt) {
       return div;
    }
    var match = document.createElement('div');
-   match.className = 'search-match-item item-thin item-purple';
+   match.className = 'item-thin item-purple';
    match.style.width = '100%';
    match.style.overflowX = 'auto';
    var lineno = document.createElement('div');
+   lineno.className = 'editor-linenumber';
    lineno.style.font = ui.state.const.pre_font;
-   lineno.style.float = 'left';
-   lineno.style.position = 'sticky';
-   lineno.style.left = '0px';
-   lineno.style.backgroundColor = 'white';
    var pre = document.createElement('pre');
-   pre.className = 'flex-auto';
-   pre.style.tabSize = '4';
+   pre.className = 'editor-text flex-auto';
    item.matches.forEach(function (match, i) {
       if (i > 0) {
          lineno.appendChild(document.createElement('br'));
@@ -438,8 +434,8 @@ function renderSearchItem(item, opt) {
       }
       var a = document.createElement('a');
       var span = document.createElement('a');
-      ui.state.append_text(a, item.L);
-      ui.state.append_text(span, item.T);
+      ui.state.append_text(a, match.L);
+      ui.state.append_text(span, match.T);
       span.href = '#' + item.path + '#L' + match.L;
       lineno.appendChild(a);
       pre.appendChild(span);

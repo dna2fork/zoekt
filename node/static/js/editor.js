@@ -1,5 +1,6 @@
 'use strict';
 
+//@include css/editor.css
 //@include js/common.js
 
 (function () {
@@ -18,19 +19,8 @@ function SourceCodeViewer(dom, text) {
    root.style.overflow = 'auto';
    this.render();
    // TODO: move such styles to css class instead of hard code here
-   this.ui.lineNumber.style.marginRight = '2px';
-   this.ui.lineNumber.style.paddingRight = '2px';
-   this.ui.lineNumber.style.borderRight = '1px solid #999';
-   this.ui.lineNumber.style.textAlign = 'right';
-   this.ui.lineNumber.style.float = 'left';
-   this.ui.lineNumber.style.position = 'sticky';
-   this.ui.lineNumber.style.left = '0px';
-   this.ui.lineNumber.style.backgroundColor = 'white';
-   this.ui.text.className = 'flex-auto';
-   this.ui.text.style.border = 'none';
-   this.ui.text.style.padding = '0px';
-   this.ui.text.style.margin = '0px';
-   this.ui.text.style.tabSize = '4';
+   this.ui.lineNumber.className = 'editor-linenumber';
+   this.ui.text.className = 'editor-text flex-auto';
    root.appendChild(this.ui.lineNumber);
    root.appendChild(this.ui.text);
    empty_elem(this.ui.self);
