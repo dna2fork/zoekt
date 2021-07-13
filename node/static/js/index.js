@@ -430,6 +430,7 @@ function renderSearchItem(item, opt) {
    lineno.style.backgroundColor = 'white';
    var pre = document.createElement('pre');
    pre.className = 'flex-auto';
+   pre.style.tabSize = '4';
    item.matches.forEach(function (match, i) {
       if (i > 0) {
          lineno.appendChild(document.createElement('br'));

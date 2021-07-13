@@ -30,6 +30,7 @@ function SourceCodeViewer(dom, text) {
    this.ui.text.style.border = 'none';
    this.ui.text.style.padding = '0px';
    this.ui.text.style.margin = '0px';
+   this.ui.text.style.tabSize = '4';
    root.appendChild(this.ui.lineNumber);
    root.appendChild(this.ui.text);
    empty_elem(this.ui.self);
