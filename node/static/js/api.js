@@ -34,7 +34,7 @@ var api = {
          }
          return Promise.resolve([
             { name: 'next/' },
-            { name: 'pcakge.json' },
+            { name: 'packge.json' },
             { name: 'README.md' }
          ]);
       }, // getDirectoryContents
@@ -49,6 +49,12 @@ var api = {
             matchRegexp: '[Tt]his is',
             items: [
                { path: '/test1/README.md', matches: [
+                  { L: 1, T: 'This is a test readme file.' }
+               ] },
+               { path: '/test2/README.md', matches: [
+                  { L: 1, T: 'This is a test readme file.' }
+               ] },
+               { path: '/test3/README.md', matches: [
                   { L: 1, T: 'This is a test readme file.' }
                ] }
             ]

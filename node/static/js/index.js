@@ -40,6 +40,23 @@ var ui = {
       show: function (el) { el.style.display = 'block'; },
       hide: function (el) { el.style.display = 'none'; },
       empty: function (el) { empty_elem(el); },
+      flash: function (el, count) {
+         var sw = true;
+         count = count || 5;
+         _flash(el);
+
+         function _flash(el) {
+            if (count <= 0) return;
+            if (sw) {
+               el.classList.remove('item-invert');
+            } else {
+               el.classList.add('item-invert');
+            }
+            sw = !sw;
+            count --;
+            setTimeout(_flash, 200, el);
+         }
+      },
       div_message: function (msg, color) {
          var div = document.createElement('div');
          div.className = 'item item-' + (color || 'red');
@@ -62,6 +79,14 @@ var ui = {
       }
    }
 };
+
+function parseHash() {
+   var parts = location.hash.split('#');
+   parts.shift();
+   var obj = {};
+   obj.path = parts[0];
+   return obj;
+}
 
 /*
 <div class="item-thin">
@@ -86,7 +111,6 @@ function FolderNode(name, path) {
    this.ui.self.appendChild(this.ui.name);
    this.ui.self.appendChild(this.ui.items);
    this.ui.name.appendChild(document.createTextNode(name));
-/* debug */ this.childrenLoading();
 
    this.name = name;
    this.path = path;
@@ -125,8 +149,9 @@ FolderNode.prototype = {
       return node.dom();
    },
    addFileItem: function (name, url) {
-      var div = document.createElement('div');
+      var div = document.createElement('a');
       div.className = 'item-thin';
+      div.href = url;
       div.appendChild(document.createTextNode(name));
       this.ui.items.appendChild(div);
       return div;
@@ -222,14 +247,102 @@ FolderTree.prototype = {
       }
       return node;
    },
-   asyncExpandTo: function (path) { return new Promise(function (r, e) {
-      // TODO: 1. generate loading tasks
-      // TODO: 2. wait for tasks complete, or throw error
-   }); }
+   asyncExpandTo: function (path) {
+      var that = this;
+      return new Promise(function (r, e) {
+         var lastNode = null;
+         waitForRootLoaded();
+
+         function waitForRootLoaded() {
+            if (that.root.state === 'loaded') {
+               generateLoadingTasks();
+               return;
+            } else if (that.root.state === 'error') {
+               return e('failed to get project list.');
+            }
+            setTimeout(waitForRootLoaded, 100);
+         }
+
+         function generateLoadingTasks() {
+            that.task_queue = [];
+            var parts = path.split('/');
+            // e.g. /path/to/folder/ -> path, to, folder
+            //      /path/to/file -> path, to
+            parts.shift();
+            parts.pop();
+            parts.forEach(function (name) {
+               var task = that.task_queue[that.task_queue.length-1] || { path: '/' };
+               that.task_queue.push({ base: task.path, path: task.path + name + '/', name: name + '/' });
+            });
+            runLoadingTasks();
+         }
+
+         function runLoadingTasks() {
+            if (!that.task_queue.length) {
+               if (ui.state.nav.selected !== 'browse') {
+                  onSwitchSidePanel({ target: ui.btn.nav.browse });
+               }
+               // TODO: scroll to target node if view is long
+               if (lastNode) {
+                  var name = path.split('/').pop();
+                  if (name) {
+                     var ch = lastNode.children[name];
+                     if (ch) ui.state.flash(ch.dom);
+                  } else {
+                     ui.state.flash(lastNode.dom());
+                  }
+                  lastNode = null;
+               }
+               return r();
+            }
+            runLoadingTask(that.task_queue.shift());
+         }
+
+         function runLoadingTask(task) {
+            var node = that.locateNode(task.base);
+            if (!node) return e('cannot load: ' + task.path);
+            node = node.children[task.name];
+            if (!node) return e('not found: ' + task.name + ' in ' + task.base);
+            lastNode = node;
+            if (node.state === 'loaded') {
+               runLoadingTasks();
+            } else if (node.state === 'loading') {
+               waitForNodeLoaded(node);
+            } else {
+               node.asyncUnfold().then(
+                  function (ok) { if (ok) runLoadingTasks(); else e('cannot load: ' + task.path); },
+                  function () { e('cannot load: ' + task.path); }
+               );
+            }
+
+            function waitForNodeLoaded(node) {
+               if (node.state === 'loaded') {
+                  runLoadingTasks();
+               } else if (node.state === 'error') {
+                  return e('failed: ' + node.path);
+               }
+               setTimeout(waitForNodeLoaded, 100, node);
+            }
+         }
+      });
+   }
 };
 
 function onHashChange() {
    console.log(location.hash);
+   var obj = parseHash();
+   if (obj.path) {
+      if (obj.path === '/') {
+      } else if (obj.path.startsWith('/')) {
+         ui.panel.browse_tree.asyncExpandTo(obj.path);
+      } else if (obj.path.startsWith('?')) {
+         var query = decodeURIComponent(obj.path.substring(1));
+         onSearch(query);
+         if (ui.state.nav.selected !== 'search') {
+            onSwitchSidePanel({ target: ui.btn.nav.search });
+         }
+      }
+   }
 }
 
 function onSwitchSidePanel(evt) {
@@ -260,15 +373,16 @@ function onSwitchSidePanel(evt) {
    <a>{path}</a>
    <div class="flex-table flex-row search-match-item item-thin item-purple">
       <div style="font: 13px monospace;"><a>{line-number}</a></div>
-      <pre class="flex-auto"><span>{matched-text}</span></pre>
+      <pre class="flex-auto"><a>{matched-text}</a></pre>
    </div>
 </div>
  */
 function renderSearchItem(item, opt) {
    var div = document.createElement('div');
-   div.className = 'item-thin item-blue';
+   div.className = 'item-thin item-blue search-item';
    var a = document.createElement('a');
    a.appendChild(document.createTextNode(item.path));
+   a.href = '#' + item.path;
    if (!item.matches || !item.matches.length) {
       return div;
    }
@@ -284,9 +398,10 @@ function renderSearchItem(item, opt) {
          pre.appendChild(document.createElement('br'));
       }
       var a = document.createElement('a');
-      var span = document.createElement('span');
+      var span = document.createElement('a');
       a.appendChild(document.createTextNode(match.L));
       span.appendChild(document.createTextNode(match.T));
+      span.href = '#' + item.path + '#L' + match.L;
       lineno.appendChild(a);
       pre.appendChild(span);
    });
@@ -311,6 +426,10 @@ function renderSearchItems(result) {
 
 function onSearch(query) {
    // TODO: handle prev query processing, e.g. cancel, parallel
+   ui.txt.search.query.value = query;
+   ui.state.empty(ui.panel.search_result);
+   // TODO: convert to code instead of html string
+   ui.panel.search_result.innerHTML = '<div><span class="spin spin-sm"></span> Searching ...</div>';
    Flame.api.project.search(query).then(
       function (result) {
          renderSearchItems(result);
@@ -327,14 +446,16 @@ function onSearchFromBtn(evt) {
       ui.txt.search.query.focus();
       return;
    }
-   onSearch(query);
+   location.hash = '#?' + encodeURIComponent(query);
+   // hashchange -> onSearch(query);
 }
 
 function onSearchFromInput(evt) {
    if (evt.code !== 'Enter') return;
    var query = ui.txt.search.query.value;
    if (!query) return;
-   onSearch(query);
+   location.hash = '#?' + encodeURIComponent(query);
+   // hashchange -> onSearch(query);
 }
 
 function initEvent() {
@@ -352,9 +473,9 @@ function initComponent() {
    ui.state.label.text(ui.label.username, cookie.user || '(flame)');
    // TODO: if cookie.user is empty
 
-   // debug
    ui.panel.browse_tree = new FolderTree(ui.panel.browse_tree);
    ui.panel.browse_tree.root.asyncUnfold();
+   onHashChange();
 
    var pre = document.createElement('pre');
    document.body.appendChild(pre);
