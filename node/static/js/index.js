@@ -94,7 +94,6 @@ function parseHash() {
 }
 
 function onHashChange() {
-   console.log(location.hash);
    var obj = parseHash();
    if (obj.path) {
       if (obj.path.startsWith('/')) {
@@ -205,7 +204,14 @@ function onView(path, opt) {
    ui.state.empty(ui.panel.contents);
    Flame.api.project.getFileContents(path).then(
       function (obj) {
-         var editor = new Flame.editor.SourceCodeViewer(ui.panel.contents, obj.data);
+         var editor;
+         if (obj.binary) {
+            ui.state.empty(ui.panel.contents);
+            ui.state.append_text(ui.panel.contents, 'Binary file view NOT supported yet.');
+            editor = { dispose: function () {} };
+         } else {
+            editor = new Flame.editor.SourceCodeViewer(ui.panel.contents, obj.data);
+         }
          ui.state.global.editor = editor;
       },
       function () {}

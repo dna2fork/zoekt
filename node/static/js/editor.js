@@ -14,11 +14,8 @@ function SourceCodeViewer(dom, text) {
       text: document.createElement('pre')
    };
    var root = document.createElement('div');
-   root.style.width = '100%';
-   root.style.height = '100%';
-   root.style.overflow = 'auto';
+   root.className = 'editor-container';
    this.render();
-   // TODO: move such styles to css class instead of hard code here
    this.ui.lineNumber.className = 'editor-linenumber';
    this.ui.text.className = 'editor-text flex-auto';
    root.appendChild(this.ui.lineNumber);
