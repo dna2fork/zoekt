@@ -37,3 +37,10 @@
 .editor-highlight > div {
    position: absolute;
 }
+
+.editor-info-box {
+   position: fixed;
+   border: 1px solid black;
+   background-color: white;
+   z-index: 1;
+}
