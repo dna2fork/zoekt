@@ -2,6 +2,7 @@
 
 //@include css/editor.css
 //@include js/common.js
+//@include js/onhold.js
 
 (function () {
 
@@ -35,6 +36,13 @@ function SourceCodeViewer(dom, text) {
    empty_elem(this.ui.self);
    this.ui.self.appendChild(root);
    sideFlex.style.font = getComputedStyle(this.ui.text).font;
+
+   this.onHoldOn = new Flame.event.ElementHoldEvent(this.ui.lineNumber, {
+      selectorFn: function (el) { return el.tagName.toLowerCase() === 'a'; }
+   });
+   this.onHoldOn.on(function (evt) {
+      // TODO: process for long hold click / touch on a line number
+   });
 }
 SourceCodeViewer.prototype = {
    render: function () {
@@ -56,7 +64,9 @@ SourceCodeViewer.prototype = {
          that.ui.text.appendChild(span);
       });
    },
-   dispose: function () {}
+   dispose: function () {
+      this.onHoldOn.dispose();
+   }
 };
 
 if (!window.Flame) window.Flame = {};
