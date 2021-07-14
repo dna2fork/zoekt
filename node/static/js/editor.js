@@ -6,61 +6,6 @@
 
 (function () {
 
-function SourceInfoBox(dom, opt) {
-   // opt:
-   //    align --- element for positioning
-   this.opt = opt || {};
-   this.data = null;
-   this.ui = {
-      self: dom,
-      title: document.createElement('div'),
-      close: document.createElement('button'),
-   };
-
-   this.ui.self.className = 'editor-info-box';
-   this.ui.self.style.display = 'none';
-
-   var div = document.createElement('div');
-   div.className = 'flex-table flex-row';
-   this.ui.title.className = 'flex-auto';
-   this.ui.title.style.padding = '3px';
-   this.ui.title.style.margin = '2px';
-   this.ui.close.innerHTML = 'X';
-   this.ui.close.style.padding = '3px';
-   this.ui.close.style.margin = '2px';
-   div.appendChild(this.ui.title);
-   div.appendChild(this.ui.close);
-   this.ui.self.appendChild(div);
-
-   var that = this;
-   this.events = {
-      onClickClose: function (evt) {
-         that.hide();
-      }
-   };
-   this.ui.close.addEventListener('click', this.events.onClickClose);
-}
-SourceInfoBox.prototype = {
-   show: function (data) {
-      var y = this.opt.align?this.opt.align.offsetTop:0;
-      var h = this.opt.align?this.opt.align.offsetHeight:0;
-      this.data = data;
-      this.ui.self.style.right = '0px';
-      this.ui.self.style.top = y + 'px';
-      this.ui.self.style.width = '200px';
-      this.ui.self.style.height = h + 'px';
-      this.ui.self.style.display = 'block';
-   },
-   hide: function () {
-      this.data = null;
-      this.ui.self.style.display = 'none';
-   },
-   dispose: function () {
-      this.ui.close.removeEventListener('click', this.events.onClickClose);
-   },
-   dom: function () { return this.ui.self; }
-};
-
 function SourceCodeViewer(dom, text) {
    this.lines = text.split('\n');
 
@@ -70,11 +15,7 @@ function SourceCodeViewer(dom, text) {
       lineNumber: document.createElement('div'),
       blame: document.createElement('div'),
       text: document.createElement('pre'),
-      highlight: document.createElement('div'),
-      info: new SourceInfoBox(
-         document.createElement('div'),
-         { align: dom }
-      )
+      highlight: document.createElement('div')
    };
 
    var root = document.createElement('div');
@@ -97,7 +38,6 @@ function SourceCodeViewer(dom, text) {
    root.appendChild(this.ui.highlight);
    root.appendChild(this.ui.leftSide);
    root.appendChild(this.ui.text);
-   root.appendChild(this.ui.info.dom());
    empty_elem(this.ui.self);
    this.ui.self.appendChild(root);
    // post: ui attached to screen
@@ -109,8 +49,7 @@ function SourceCodeViewer(dom, text) {
    var that = this;
    this.onHoldOn.on(function (evt) {
       // TODO: process for long hold click / touch on a line number
-      that.ui.info.hide();
-      that.ui.info.show({ linenumber: parseInt(evt.target.textContent, 10) });
+      //       show metadata like blame, comment, linkage, ... in 'analysis' tab
    });
 }
 SourceCodeViewer.prototype = {
@@ -135,7 +74,6 @@ SourceCodeViewer.prototype = {
    },
    dispose: function () {
       this.onHoldOn.dispose();
-      this.ui.info.dispose();
    }
 };
 

@@ -192,6 +192,11 @@ function elem_append_text(el, text) {
    return el;
 }
 
+function elem_append_html(el, html) {
+   el.innerHTML += html;
+   return el;
+}
+
 function detect_uuid_change(data) {
    if (!data) return;
    try {

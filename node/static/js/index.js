@@ -9,6 +9,7 @@ var ui = {
       nav: {
          search: dom('#btn-search'),
          browse: dom('#btn-browse'),
+         analysis: dom('#btn-analysis'),
          team: dom('#btn-team'),
          settings: dom('#btn-settings')
       },
@@ -27,6 +28,7 @@ var ui = {
       search_result: dom('#search_pnl-item'),
       browse: dom('#pnl-side-browse'),
       browse_tree: dom('#browse_pnl-tree'),
+      analysis: dom('#pnl-side-analysis'),
       team: dom('#pnl-side-team'),
       settings: dom('#pnl-side-settings'),
       title: dom('#pnl-title'), // e.g. show breadcrumb
@@ -123,14 +125,11 @@ function onSwitchSidePanel(evt) {
       ui.state.hide(ui.panel.side);
       ui.state.nav.deselect(ui.btn.nav[id]);
    } else {
-      ui.state.hide(ui.panel.search);
-      ui.state.hide(ui.panel.browse);
-      ui.state.hide(ui.panel.team);
-      ui.state.hide(ui.panel.settings);
-      ui.state.nav.deselect(ui.btn.nav.search);
-      ui.state.nav.deselect(ui.btn.nav.browse);
-      ui.state.nav.deselect(ui.btn.nav.team);
-      ui.state.nav.deselect(ui.btn.nav.settings);
+      var all = ['search', 'browse', 'analysis', 'team', 'settings'];
+      all.forEach(function (one) {
+         ui.state.hide(ui.panel[one]);
+         ui.state.nav.deselect(ui.btn.nav[one]);
+      });
       ui.state.nav.select(ui.btn.nav[id]);
       ui.state.show(ui.panel[id]);
       ui.state.show(ui.panel.side);
@@ -298,6 +297,7 @@ function initEvent() {
    window.addEventListener('hashchange', onHashChange);
    ui.btn.nav.search.addEventListener('click', onSwitchSidePanel);
    ui.btn.nav.browse.addEventListener('click', onSwitchSidePanel);
+   ui.btn.nav.analysis.addEventListener('click', onSwitchSidePanel);
    ui.btn.nav.team.addEventListener('click', onSwitchSidePanel);
    ui.btn.nav.settings.addEventListener('click', onSwitchSidePanel);
    ui.btn.search.act.addEventListener('click', onSearchFromBtn);
