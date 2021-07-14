@@ -23,7 +23,7 @@ function ElementHoldEvent(dom, opt) {
    this.opt.duration = this.opt.duration || 500;
 
    var that = this;
-   var _timer = -1, _hold = false;
+   var _timer = -1;
    var _x, _y, _tx0, _ty0, _target;
    this.triggers = [];
    this.events = {
@@ -33,35 +33,39 @@ function ElementHoldEvent(dom, opt) {
          }
          _x = evt.offsetX;
          _y = evt.offsetY;
+         _target = evt.target;
          if (_timer > 0) clearTimeout(_timer);
          _timer = setTimeout(function () {
-            _hold = true;
-            _target = evt.target;
+            that.fire(createHoldOnEvent(evt.target));
+            _target = null;
             _timer = -1;
          }, that.opt.duration);
+      },
+      onMouseMove: function (evt) {
+         if (!_target) return;
+         _tx0 = evt.offsetX;
+         _ty0 = evt.offsetY;
+         if (evt.target !== _target || distance(_x, _y, _tx0, _ty0) >= 1) {
+            if (_timer > 0) clearTimeout(_timer);
+            _target = null;
+            _timer = -1;
+         }
       },
       onMouseUp: function (evt) {
          if (_timer > 0) {
             clearTimeout(_timer);
             return;
          }
-         var hold = _hold, target = _target;
-         _hold = false;
          _target = null;
-         if (evt.target != target) {
-            return;
-         }
-         if (hold && distance(_x, _y, evt.offsetX, evt.offsetY) < 1) {
-            that.fire(createHoldOnEvent(evt.target));
-         }
+         _timer = -1;
       },
       onMouseLeave: function (evt) {
          if (_timer > 0) {
             clearTimeout(_timer);
             return;
          }
-         _hold = false;
          _target = null;
+         _timer = -1;
       },
       onTouchStart: function (evt) {
          if (evt.touches.length > 1) return;
@@ -72,8 +76,8 @@ function ElementHoldEvent(dom, opt) {
          _y = evt.touches[0].clientY;
          if (_timer > 0) clearTimeout(_timer);
          _timer = setTimeout(function () {
-            _hold = true;
-            _target = evt.target;
+            that.fire(createHoldOnEvent(evt.target));
+            _target = null;
             _timer = -1;
          }, that.opt.duration);
       },
@@ -81,10 +85,10 @@ function ElementHoldEvent(dom, opt) {
          if (!_target) return;
          _tx0 = evt.touches[0].clientX;
          _ty0 = evt.touches[0].clientY;
-         if (evt.touches.length > 1 || distance(_x, _y, _tx0, _ty0) >= 1) {
+         if (!evt.cancelable || _target !== evt.target || evt.touches.length > 1 || distance(_x, _y, _tx0, _ty0) >= 1) {
             if (_timer > 0) clearTimeout(_timer);
-            _hold = false;
             _target = null;
+            _timer = -1;
          }
       },
       onTouchEnd: function (evt) {
@@ -92,23 +96,13 @@ function ElementHoldEvent(dom, opt) {
             clearTimeout(_timer);
             return;
          }
-         if (evt.target !== _target) {
-            return;
-         }
-         var hold = _hold, target = _target;
-         _hold = false;
          _target = null;
-         if (evt.target != target) {
-            return;
-         }
-         if (hold && evt.cancelable) {
-            evt.preventDefault();
-            that.fire(createHoldOnEvent(evt.target));
-         }
+         _timer = -1;
       }
    };
    this.self = dom;
    this.self.addEventListener('mousedown', this.events.onMouseDown);
+   this.self.addEventListener('mousemove', this.events.onMouseMove);
    this.self.addEventListener('mouseup', this.events.onMouseUp);
    this.self.addEventListener('mouseleave', this.events.onMouseLeave);
    this.self.addEventListener('touchstart', this.events.onTouchStart);
@@ -132,6 +126,7 @@ ElementHoldEvent.prototype = {
    },
    dispose: function () {
       this.self.removeEventListener('mousedown', this.events.onMouseDown);
+      this.self.removeEventListener('mousemove', this.events.onMouseMove);
       this.self.removeEventListener('mouseup', this.events.onMouseUp);
       this.self.removeEventListener('mouseleave', this.events.onMouseLeave);
       this.self.removeEventListener('touchstart', this.events.onTouchStart);
