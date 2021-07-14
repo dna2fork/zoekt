@@ -331,6 +331,7 @@ FolderTree.prototype = {
             if (!node) return e('not found: ' + task.name + ' in ' + task.base);
             lastNode = node;
             if (node.state === 'loaded') {
+               node.asyncUnfold();
                runLoadingTasks();
             } else if (node.state === 'loading') {
                waitForNodeLoaded(node);
@@ -486,6 +487,7 @@ function renderBreadcrumb(path) {
       var a = document.createElement('a');
       ui.state.append_text(a, name);
       a.href = '#' + curpath;
+      a.setAttribute('data-path', curpath);
       ui.panel.title.appendChild(a);
       ui.state.append_text(ui.panel.title, ' / ')
    });
@@ -526,6 +528,16 @@ function onSearchFromInput(evt) {
    // hashchange -> onSearch(query);
 }
 
+function onClickBreadcrumb(evt) {
+   if (evt.target.tagName.toLowerCase() !== 'a') return;
+   if (!evt.ctrlKey && !evt.shiftKey && !evt.altKey) {
+      evt.preventDefault();
+   }
+   var path = evt.target.getAttribute('data-path');
+   if (!path) return;
+   ui.panel.browse_tree.asyncExpandTo(path);
+}
+
 function initEvent() {
    window.addEventListener('hashchange', onHashChange);
    ui.btn.nav.search.addEventListener('click', onSwitchSidePanel);
@@ -533,7 +545,8 @@ function initEvent() {
    ui.btn.nav.team.addEventListener('click', onSwitchSidePanel);
    ui.btn.nav.settings.addEventListener('click', onSwitchSidePanel);
    ui.btn.search.act.addEventListener('click', onSearchFromBtn);
-   ui.txt.search.query.addEventListener('keypress', onSearchFromInput)
+   ui.txt.search.query.addEventListener('keypress', onSearchFromInput);
+   ui.panel.title.addEventListener('click', onClickBreadcrumb);
 }
 
 function initComponent() {
