@@ -13,19 +13,23 @@ function SourceCodeViewer(dom, text) {
       leftSide: document.createElement('div'),
       lineNumber: document.createElement('div'),
       blame: document.createElement('div'),
-      text: document.createElement('pre')
+      text: document.createElement('pre'),
+      highlight: document.createElement('div')
    };
    var root = document.createElement('div');
    var sideFlex = document.createElement('div');
    root.className = 'editor-container';
    this.render();
    sideFlex.className = 'editor-side-flex';
-   this.ui.leftSide.className = 'editor-linenumber';
+   this.ui.leftSide.className = 'editor-left-side';
    this.ui.text.className = 'editor-text flex-auto';
+   this.ui.lineNumber.className = 'editor-linenumber';
+   this.ui.highlight.className = 'editor-highlight';
    sideFlex.appendChild(this.ui.lineNumber);
    this.ui.blame.style.display = 'none';
    sideFlex.appendChild(this.ui.blame);
    this.ui.leftSide.appendChild(sideFlex);
+   root.appendChild(this.ui.highlight);
    root.appendChild(this.ui.leftSide);
    root.appendChild(this.ui.text);
    empty_elem(this.ui.self);

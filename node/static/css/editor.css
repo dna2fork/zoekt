@@ -7,7 +7,7 @@
    display: flex;
    flex-direction: row;
 }
-.editor-linenumber {
+.editor-left-side {
    margin-right: 2px;
    padding-right: 2px;
    border-right: 1px solid #999;
@@ -25,4 +25,15 @@
    padding: 0px;
    margin: 0px;
    tab-size: 4;
+}
+
+.editor-highlight {
+   position: relative;
+   width: 0px;
+   height: 0px;
+   z-index: -10;
+}
+
+.editor-highlight > div {
+   position: absolute;
 }
