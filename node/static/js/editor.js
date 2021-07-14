@@ -10,22 +10,32 @@ function SourceCodeViewer(dom, text) {
 
    this.ui = {
       self: dom,
+      leftSide: document.createElement('div'),
       lineNumber: document.createElement('div'),
+      blame: document.createElement('div'),
       text: document.createElement('pre')
    };
    var root = document.createElement('div');
+   var sideFlex = document.createElement('div');
    root.className = 'editor-container';
    this.render();
-   this.ui.lineNumber.className = 'editor-linenumber';
+   sideFlex.className = 'editor-side-flex';
+   this.ui.leftSide.className = 'editor-linenumber';
    this.ui.text.className = 'editor-text flex-auto';
-   root.appendChild(this.ui.lineNumber);
+   sideFlex.appendChild(this.ui.lineNumber);
+   this.ui.blame.style.display = 'none';
+   sideFlex.appendChild(this.ui.blame);
+   this.ui.leftSide.appendChild(sideFlex);
+   root.appendChild(this.ui.leftSide);
    root.appendChild(this.ui.text);
    empty_elem(this.ui.self);
    this.ui.self.appendChild(root);
-   this.ui.lineNumber.style.font = getComputedStyle(this.ui.text).font;
+   sideFlex.style.font = getComputedStyle(this.ui.text).font;
 }
 SourceCodeViewer.prototype = {
    render: function () {
+      // TODO: show blame info for each line in this.ui.blame (by default display: none)
+      // TODO: syntax highlight for source code text
       empty_elem(this.ui.lineNumber);
       empty_elem(this.ui.text);
       var that = this;

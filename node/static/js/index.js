@@ -197,6 +197,20 @@ function renderSearchItems(result) {
    });
 }
 
+function renderNotSupportFileView(obj) {
+   ui.state.empty(ui.panel.contents);
+   var div = document.createElement('div');
+   div.className = 'item item-red';
+   var img = document.createElement('img');
+   img.src = 'img/exclamation.svg';
+   img.style.width = '18px';
+   img.style.height = '18px';
+   div.appendChild(img);
+   ui.state.append_text(div, ' binary file view NOT supported yet!');
+   ui.panel.contents.appendChild(div);
+   return { dispose: function () {} };
+}
+
 function onView(path, opt) {
    if (!opt) opt = {};
    // TODO: locate to sepcified line number
@@ -206,9 +220,7 @@ function onView(path, opt) {
       function (obj) {
          var editor;
          if (obj.binary) {
-            ui.state.empty(ui.panel.contents);
-            ui.state.append_text(ui.panel.contents, 'Binary file view NOT supported yet.');
-            editor = { dispose: function () {} };
+            editor = renderNotSupportFileView(obj);
          } else {
             editor = new Flame.editor.SourceCodeViewer(ui.panel.contents, obj.data);
          }

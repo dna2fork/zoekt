@@ -3,6 +3,10 @@
    height: 100%;
    overflow: auto;
 }
+.editor-side-flex {
+   display: flex;
+   flex-direction: row;
+}
 .editor-linenumber {
    margin-right: 2px;
    padding-right: 2px;
