@@ -168,6 +168,30 @@ function hide_loading() {
    div.parentNode.removeChild(div);
 }
 
+//@include css/common.css
+function elem_flash(el, count) {
+   var sw = true;
+   count = count || 5;
+   _flash(el);
+
+   function _flash(el) {
+      if (count <= 0) return;
+      if (sw) {
+         el.classList.remove('item-invert');
+      } else {
+         el.classList.add('item-invert');
+      }
+      sw = !sw;
+      count --;
+      setTimeout(_flash, 200, el);
+   }
+}
+
+function elem_append_text(el, text) {
+   el.appendChild(document.createTextNode(text));
+   return el;
+}
+
 function detect_uuid_change(data) {
    if (!data) return;
    try {
