@@ -78,6 +78,7 @@ var Funcmap = template.FuncMap{
 	"TrimTrailingNewline": func(s string) string {
 		return strings.TrimSuffix(s, "\n")
 	},
+	"JsonText": jsonTextForTemplate,
 }
 
 const defaultNumResults = 50
@@ -127,6 +128,10 @@ type Server struct {
 	lastStatsMu sync.Mutex
 	lastStats   *zoekt.RepoStats
 	lastStatsTS time.Time
+
+	SourceBaseDir string
+	IndexDir string
+	BasicAuth ServerAuthBasic
 }
 
 func (s *Server) getTemplate(str string) *template.Template {
@@ -201,6 +206,7 @@ func NewMux(s *Server) (*http.ServeMux, error) {
 	}
 
 	mux.HandleFunc("/healthz", s.serveHealthz)
+	s.initContribHandlers(mux)
 
 	return mux, nil
 }
@@ -224,7 +230,7 @@ func (s *Server) serveHealthz(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) serveSearch(w http.ResponseWriter, r *http.Request) {
-	result, err := s.serveSearchErr(r)
+	result, err := s.serveSearchErr(w, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusTeapot)
 		return
@@ -251,7 +257,9 @@ func (s *Server) serveSearch(w http.ResponseWriter, r *http.Request) {
 	w.Write(buf.Bytes())
 }
 
-func (s *Server) serveSearchErr(r *http.Request) (*ApiSearchResult, error) {
+func (s *Server) serveSearchErr(w http.ResponseWriter, r *http.Request) error {
+	if !s.checkAuth(w, r) { return nil }
+
 	qvals := r.URL.Query()
 
 	debugScore, _ := strconv.ParseBool(qvals.Get("debug"))
@@ -564,6 +572,8 @@ func (s *Server) serveListReposErr(q query.Q, qStr string, r *http.Request) (*Re
 }
 
 func (s *Server) servePrintErr(w http.ResponseWriter, r *http.Request) error {
+	if !s.checkAuth(w, r) { return nil }
+
 	qvals := r.URL.Query()
 	fileStr := qvals.Get("f")
 	repoStr := qvals.Get("r")
