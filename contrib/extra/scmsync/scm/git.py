@@ -76,7 +76,7 @@ class Git(object):
     def clone(self):
         print('[git] clone {0} branch={1}'.format(self._path, self._branch))
         try:
-            cmd = 'git clone \'{0}\' -b {2} {1}'.format(self._url, self._path, self._branch)
+            cmd = 'git clone --depth=1 -b {2} \'{0}\' {1}'.format(self._url, self._path, self._branch)
             subprocess.check_output(cmd, shell=True)
             cmd = 'find {0} -type f | grep -v -e "[.]git/"'.format(self._path)
             synced_list = subprocess.check_output(cmd, shell=True).decode().split('\n')
@@ -93,7 +93,7 @@ class Git(object):
             cmd = 'cd {0}; git branch | grep "* "'.format(self._path)
             branch = subprocess.check_output(cmd, shell=True).decode()
             branch = branch.split(' ')[-1].strip()
-            cmd = 'cd {0}; git fetch --all; git diff HEAD "origin/{1}" | grep -e "^diff --git "'.format(self._path, branch)
+            cmd = 'cd {0}; git fetch --append --depth=1; git diff HEAD "origin/{1}" | grep -e "^diff --git "'.format(self._path, branch)
             synced_list = subprocess.check_output(cmd, shell=True).decode().split('\n')
             self._removeEmptyTail(synced_list)
             synced_list = list(filter(None, map(self._diffPath, synced_list)))
