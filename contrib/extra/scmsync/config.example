@@ -1,0 +1,4 @@
+# some comment here
+# add h to at the end of line to sync commit also
+git  https://username:private_token@github.com/group/project.git    /opt/data/git/project   project_name   admin
+p4   perforce.com:1666                                              test-for-p4-client      project_name_2 admin
