@@ -483,15 +483,24 @@ func (p *P4Project) GetFileBinaryContents (path, revision string) ([]byte, error
 	L := 0
 	contrib.Exec2Bytes(cmd, func (stream io.ReadCloser) {
 		n := 1024 * 1024 * 1
+		// stdout has a max buffer size (< n)
+		// use stdn to make sure we can get all file contents
+		stdn := 0
 		buf := make([]byte, n)
-		for n >= 1024 * 1024 * 1 {
-			L += n
+		for stdn == 0 || n >= stdn {
 			if L > 1024 * 1024 * 10 {
 				// max reading size 10 MB
 				err = fmt.Errorf("larger than 10 MB")
 				return
 			}
 			n, err = stream.Read(buf)
+			if n == 0 {
+				break
+			}
+			L += n
+			if stdn == 0 {
+				stdn = n
+			}
 			if err != nil {
 				return
 			}
@@ -937,15 +946,24 @@ func (p *GitProject) GetFileBinaryContents (path, revision string) ([]byte, erro
 	L := 0
 	contrib.Exec2Bytes(cmd, func (stream io.ReadCloser) {
 		n := 1024 * 1024 * 1
+		// stdout has a max buffer size (< n)
+		// use stdn to make sure we can get all file contents
+		stdn := 0
 		buf := make([]byte, n)
-		for n >= 1024 * 1024 * 1 {
-			L += n
+		for stdn == 0 || n >= stdn {
 			if L > 1024 * 1024 * 10 {
 				// max reading size 10 MB
 				err = fmt.Errorf("larger than 10 MB")
 				return
 			}
 			n, err = stream.Read(buf)
+			if n == 0 {
+				break
+			}
+			L += n
+			if stdn == 0 {
+				stdn = n
+			}
 			if err != nil {
 				return
 			}
