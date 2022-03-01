@@ -527,11 +527,10 @@ func (s *Server) contribRenderSearchResult(result *zoekt.SearchResult, q string,
 			Num:       num,
 			AutoFocus: true,
 		},
-		Stats:         result.Stats,
-		Query:         q,
-		QueryStr:      q,
-		SearchOptions: "",
-		FileMatches:   fileMatches,
+		Stats:       result.Stats,
+		Query:       q,
+		QueryStr:    q,
+		FileMatches: fileMatches,
 	}
 	if res.Stats.Wait < res.Stats.Duration/10 {
 		// Suppress queueing stats if they are neglible.
