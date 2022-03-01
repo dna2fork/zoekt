@@ -297,8 +297,10 @@ func (s *Server) serveSearch(w http.ResponseWriter, r *http.Request) {
 	w.Write(buf.Bytes())
 }
 
-func (s *Server) serveSearchErr(w http.ResponseWriter, r *http.Request) error {
-	if !s.checkAuth(w, r) { return nil }
+func (s *Server) serveSearchErr(w http.ResponseWriter, r *http.Request) (*ApiSearchResult, error) {
+	if !s.checkAuth(w, r) {
+		return nil, nil
+	}
 
 	qvals := r.URL.Query()
 
