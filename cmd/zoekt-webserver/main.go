@@ -61,6 +61,8 @@ import (
 	"github.com/sourcegraph/zoekt/query"
 	"github.com/sourcegraph/zoekt/search"
 	"github.com/sourcegraph/zoekt/web"
+	"github.com/sourcegraph/zoekt/contrib"
+	"github.com/sourcegraph/zoekt/contrib/analysis"
 )
 
 const logFormat = "2006-01-02T15-04-05.999999999Z07"
@@ -136,6 +138,8 @@ func main() {
 	enableRPC := flag.Bool("rpc", false, "enable go/net RPC")
 	enableIndexserverProxy := flag.Bool("indexserver_proxy", false, "proxy requests with URLs matching the path /indexserver/ to <index>/indexserver.sock")
 	print := flag.Bool("print", false, "enable local result URLs")
+	fsbase := flag.String("fs_base_dir", "", "enable api to fetch file/directory contents (filepath)")
+	basicauth := flag.String("basic_auth", "", "enable basic auth in api invocation (filepath)")
 	enablePprof := flag.Bool("pprof", false, "set to enable remote profiling.")
 	sslCert := flag.String("ssl_cert", "", "set path to SSL .pem holding certificate.")
 	sslKey := flag.String("ssl_key", "", "set path to SSL .pem holding key.")
@@ -152,6 +156,31 @@ func main() {
 	if *version {
 		fmt.Printf("zoekt-webserver version %q\n", index.Version)
 		os.Exit(0)
+	}
+
+	if contrib.DEBUG_ON {
+		fmt.Println("[!] Debug Mode: ON")
+	}
+	if *fsbase == "" {
+		fmt.Println("[!] No source root (--fs_base_dir)")
+	}
+	if *indexDir == "" {
+		fmt.Println("[!] No zoekt index root (--index)")
+	}
+	if analysis.P4_BIN == "" {
+		fmt.Println("[!] No perforce support (ZOETK_P4_BIN)")
+	} else {
+		fmt.Println("ZOETK_P4_BIN:", analysis.P4_BIN)
+	}
+	if analysis.GIT_BIN == "" {
+		fmt.Println("[!] No git support (ZOETK_GIT_BIN)")
+	} else {
+		fmt.Println("ZOETK_GIT_BIN:", analysis.GIT_BIN)
+	}
+	if analysis.CTAGS_BIN == "" {
+		fmt.Println("[!] No ctags support (ZOETK_CTAGS_BIN)")
+	} else {
+		fmt.Println("ZOETK_CTAGS_BIN:", analysis.CTAGS_BIN)
 	}
 
 	if *dumpTemplates {
@@ -228,6 +257,9 @@ func main() {
 	s.Print = *print
 	s.HTML = *html
 	s.RPC = *enableRPC
+	s.IndexDir = *indexDir
+	s.SourceBaseDir = *fsbase
+	s.BasicAuth.FileName = *basicauth
 
 	if *hostCustomization != "" {
 		s.HostCustomQueries = map[string]string{}
