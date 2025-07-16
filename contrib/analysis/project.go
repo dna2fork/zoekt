@@ -13,8 +13,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/zoekt"
-	"github.com/google/zoekt/contrib"
+	"github.com/sourcegraph/zoekt"
+	"github.com/sourcegraph/zoekt/contrib"
 )
 
 var (

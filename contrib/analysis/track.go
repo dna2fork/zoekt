@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"strings"
 	"sync"
-	"github.com/google/zoekt/contrib"
+	"github.com/sourcegraph/zoekt/contrib"
 )
 
 type DiffMap struct {

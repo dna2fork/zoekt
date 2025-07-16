@@ -9,7 +9,7 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"encoding/json"
-	"github.com/google/zoekt/contrib"
+	"github.com/sourcegraph/zoekt/contrib"
 )
 
 type OccurrenceReport struct {

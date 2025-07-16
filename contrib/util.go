@@ -16,10 +16,10 @@ import (
 	"path/filepath"
 	"io/ioutil"
 
-	"github.com/google/zoekt"
-	"github.com/google/zoekt/query"
-	"github.com/google/zoekt/shards"
-	"github.com/google/zoekt/build"
+	"github.com/sourcegraph/zoekt"
+	"github.com/sourcegraph/zoekt/query"
+	"github.com/sourcegraph/zoekt/search"
+	"github.com/sourcegraph/zoekt/index"
 	"go.uber.org/automaxprocs/maxprocs"
 )
 
@@ -230,7 +230,7 @@ func Search(indexPath string, ctx context.Context, q string, num int) (*zoekt.Se
 		return nil, fmt.Errorf("invalid index path")
 	}
 	PrintDebugCommand(fmt.Sprintf("search in '%s'", indexPath))
-	searcher, err := shards.NewDirectorySearcher(indexPath)
+	searcher, err := search.NewDirectorySearcher(indexPath)
 	if err != nil {
 		return nil, err
 	}
@@ -247,10 +247,8 @@ func Search(indexPath string, ctx context.Context, q string, num int) (*zoekt.Se
 	} else if numdocs := plan.ShardFilesConsidered; numdocs > 10000 {
 		// 10k docs, top 50 -> max match/important = 275/4
 		sOpts.ShardMaxMatchCount = num*5 + (5*num)/(numdocs/1000)
-		sOpts.ShardMaxImportantMatch = num/20 + num/(numdocs/500)
 	} else {
 		n := numdocs + num*100
-		sOpts.ShardMaxImportantMatch = n
 		sOpts.ShardMaxMatchCount = n
 		sOpts.TotalMaxMatchCount = n
 	}
@@ -301,7 +299,7 @@ func (a *fileAggregator) add(path string, info os.FileInfo, err error) error {
 
 func Index(indexPath, sourcePath string, ignoreDirs []string) error {
 	maxprocs.Set()
-	opts := build.Options{}
+	opts := index.Options{}
 	ignoreDirMap := map[string]struct{}{}
 	for _, d := range ignoreDirs {
 		d = strings.TrimSpace(d)
@@ -324,7 +322,7 @@ func Index(indexPath, sourcePath string, ignoreDirs []string) error {
 	opts.IndexDir = indexPath
 	opts.RepositoryDescription.Source = sourcePath
 	opts.RepositoryDescription.Name = filepath.Base(sourcePath)
-	builder, err := build.NewBuilder(opts)
+	builder, err := index.NewBuilder(opts)
 	if err != nil {
 		return err
 	}
@@ -347,9 +345,9 @@ func Index(indexPath, sourcePath string, ignoreDirs []string) error {
 	for f := range comm {
 		displayName := strings.TrimPrefix(f.name, pathPrefix)
 		if f.size > int64(opts.SizeMax) && !opts.IgnoreSizeMax(displayName) {
-			builder.Add(zoekt.Document{
+			builder.Add(index.Document{
 				Name:       displayName,
-				SkipReason: fmt.Sprintf("document size %d larger than limit %d", f.size, opts.SizeMax),
+				SkipReason: index.SkipReasonTooLarge,
 			})
 			continue
 		}
