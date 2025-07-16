@@ -13,4 +13,4 @@ bazel-testlogs
 bazel-zoekt
 
 local
->>>>>>> b712674e (add scmsync to sync repo)
+web/assets/

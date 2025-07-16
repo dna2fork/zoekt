@@ -235,6 +235,7 @@ func NewMux(s *Server) (*http.ServeMux, error) {
 	mux := http.NewServeMux()
 
 	if s.HTML {
+		GenStaticFileServe(mux)
 		mux.HandleFunc("/robots.txt", s.serveRobots)
 		mux.HandleFunc("/search", s.serveSearch)
 		mux.HandleFunc("/", s.serveSearchBox)
