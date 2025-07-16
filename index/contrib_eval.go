@@ -1,4 +1,4 @@
-package zoekt
+package index
 
 import (
 	"strings"
