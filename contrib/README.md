@@ -1,6 +1,15 @@
 # contrib
 ==========
 
+### how to avoid ctags error when parsing symbols
+
+add .ctags.d/avoid-error.ctags
+
+```
+--languages=-TOML
+--languages=-Cargo
+```
+
 ### migrate to sourcegraph version of zoekt
 
 > ref: https://github.com/sourcegraph/zoekt
